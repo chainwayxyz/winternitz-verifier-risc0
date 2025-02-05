@@ -1,5 +1,5 @@
 .DS_Store
 Cargo.lock
-methods/guest/Cargo.lock
+winternitz/guest/Cargo.lock
 target/
 profile.pb
