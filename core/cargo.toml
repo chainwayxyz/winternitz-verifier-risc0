@@ -1,0 +1,16 @@
+[package]
+name = "winternitz-core"
+version = "1.0.0"
+edition = "2021"
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]
+
+[dependencies]
+risc0-zkvm = { version = "1.2.2", default-features = false, features = ['std'] }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+bitcoin = { version = "0.32.5", features = ["rand-std", "serde"] }
+rand = { version = "0.8", features = ["small_rng"] }
+sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
+ripemd = "0.1.3"
