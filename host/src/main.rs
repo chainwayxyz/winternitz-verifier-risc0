@@ -6,12 +6,11 @@ use header_chain::header_chain::{
 use std::convert::TryInto;
 use headerchain::{HEADERCHAIN_ELF, HEADERCHAIN_ID};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_zkvm::{compute_image_id, default_executor, default_prover, Executor, ExecutorEnv, ProverOpts, Receipt};
-use risc0_groth16::Seal;
+use risc0_zkvm::{compute_image_id, default_executor, default_prover, guest::env::verify, Executor, ExecutorEnv, ProverOpts, Receipt};
+use risc0_groth16::{verifying_key, Seal};
 use winternitz::{WINTERNITZ_ELF, WINTERNITZ_ID};
-use winternitz_core::{generate_public_key, sign_digits, Parameters};
+use winternitz_core::{generate_public_key, sign_digits, Parameters, g1_compress, g2_compress};
 use work_only::{WORK_ONLY_ELF, WORK_ONLY_ID};
-use host::{g1_compress, g2_compress};
 
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 
@@ -35,6 +34,7 @@ fn main() {
     let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> = work_only_groth16_proof_receipt.inner.groth16().unwrap();
     
     let seal= Seal::from_vec(&g16_proof.seal).unwrap();
+
 
     let a_compressed = g1_compress(seal.a);
     let b_compressed  = g2_compress(seal.b);
@@ -75,7 +75,9 @@ fn main() {
 
     
     let executor = default_executor();
-    println!("Exec result: {:?}", executor.execute(env, WINTERNITZ_ELF).unwrap());
+
+
+    println!("Exec result: {:?}", executor.execute(env, WINTERNITZ_ELF));
 }
 
 fn call_work_only(
