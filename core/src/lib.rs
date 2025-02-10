@@ -5,8 +5,7 @@ pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
 use crate::utils::*;
 use bitcoin::{
-    hashes::{Hash, hash160},
-    Witness,
+    bech32::primitives::checksum, hashes::{hash160, Hash}, p2p::message, Witness
 };
 
 use sha2::{Digest, Sha256};
@@ -59,7 +58,7 @@ fn public_key_for_digit(ps: &Parameters, secret_key: &SecretKey, digit_index: u3
 pub fn digit_signature(
     secret_key: &SecretKey,
     digit_index: u32,
-    message_digit: u32,
+    message_digit: u8,
 ) -> DigitSignature {
     let mut secret_i = secret_key.clone();
     secret_i.push(digit_index as u8);
@@ -81,28 +80,29 @@ pub fn generate_public_key(ps: &Parameters, secret_key: &SecretKey) -> PublicKey
     public_key
 }
 
-fn checksum(ps: &Parameters, digits: Vec<u32>) -> u32 {
-    let mut sum = 0;
+fn checksum(ps: &Parameters, digits: Vec<u8>) -> u32 {
+    let mut sum: u32 = 0;
     for digit in digits {
-        sum += digit;
+        sum += digit as u32;
     }
     ps.d * ps.n0 - sum
 }
 
-fn add_message_checksum(ps: &Parameters, mut digits: Vec<u32>) -> Vec<u32> {
-    let mut checksum_digits = to_digits(checksum(ps, digits.clone()), ps.d + 1, ps.n1 as i32);
-    checksum_digits.append(&mut digits);
-    checksum_digits.reverse();
+fn add_message_checksum(ps: &Parameters, digits: &Vec<u8>) -> Vec<u8> {
+    let checksum_digits = to_digits(checksum(ps, digits.clone()), ps.d + 1, ps.n1 as i32);
     checksum_digits
 }
 
-pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: Vec<u32>) -> Witness {
-    let digits = add_message_checksum(ps, digits);
-    let mut result = Witness::new();
-    for i in 0..ps.n {
+pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &Vec<u8>) -> Vec<Vec<u8>> {
+    let cheksum1 = add_message_checksum(ps, digits);
+    let mut result: Vec<Vec<u8>> = Vec::with_capacity(ps.n as usize);
+    for i in 0..ps.n0 {
         let sig = digit_signature(secret_key, i, digits[i as usize]);
         result.push(sig.hash_bytes);
-        result.push(u32_to_le_bytes_minimal(digits[i as usize]));
+    }
+    for i in 0..ps.n1{
+        let sig = digit_signature(secret_key, i + digits.len() as u32 , cheksum1[i as usize]);
+        result.push(sig.hash_bytes);
     }
     result
 }
@@ -110,23 +110,43 @@ pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: Vec<u32>) ->
 
 // Takes signature as Witness for ease of use since sign method produces result in Witness.
 // TODO: Change the signature type to u8 array
-pub fn verify_signature(public_key: &PublicKey, signature: &Witness, ps: &Parameters) -> Result<bool, String>  {
-    
-    for i in 0..public_key.len() {
-        let digit = signature.nth(i*2 + 1).ok_or("Signature is not complete")?;
-        let mut digit2 = [0u8;4];
-        for i in 0..digit.len() {
-            digit2[i] = digit[i];
+pub fn verify_signature(public_key: &PublicKey, signature: &Vec<Vec<u8>>, message: Vec<u8>, ps: &Parameters) -> Result<bool, String>  {
+    let checksum = add_message_checksum(ps, &message);
+    for i in 0..message.len() {
+        let digit = message[i];
+        if digit == 255{ 
+            if signature[i] != public_key[i] {
+                return Ok(false);
+            };
+         
+            continue; 
         }
-        
-        let digit = if digit.len() > 0 {u32::from_le_bytes(digit2)} else {0};
-        let hash = signature.nth(i*2).ok_or("Signature is not complete")?;
-        let hash_bytes = (0..(ps.d - digit - 1)).into_iter().fold(hash160(hash), |hash, _| hash160(&hash));
+        let hash_bytes = (0..(ps.d - digit as u32 - 1)).into_iter().fold(hash160(&signature[i]), |hash, _| hash160(&hash));
 
         if hash_bytes != public_key[i] {
+            println!("{:?}, {:?}", hash_bytes, public_key[i as usize]);
             return Ok(false);
         }
     }
+
+    for i in 0..ps.n1{
+        let digit = checksum[i as usize];
+        let ind = message.len() + i as usize;
+        if digit == 255{ 
+            if signature[ind] != public_key[ind] {
+                return Ok(false);
+            };
+            continue; 
+        }
+
+        let hash_bytes = (0..(ps.d - digit as u32 - 1)).into_iter().fold(hash160(&signature[ind]), |hash, _| hash160(&hash));
+        
+        if hash_bytes != public_key[ind] {
+            println!("{:?}, {:?}", hash_bytes, public_key[ind]);
+            return Ok(false);
+        }
+    }
+
     Ok(true)
 }
 

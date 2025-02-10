@@ -10,5 +10,4 @@ fn main() {
     let mut words = chain_state_total_work_u128.to_words();
     words.reverse();
     env::commit(&words);
-    // let total_work_u128: [u8; 16] = block_header_circuit_output.chain_state.total_work[16..32].try_into().unwrap();    
 }

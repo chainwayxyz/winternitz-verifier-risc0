@@ -9,15 +9,7 @@ pub fn log_base_ceil(n: u32, base: u32) -> u32 {
     res
 }
 
-pub fn u32_to_le_bytes_minimal(a: u32) -> Vec<u8> {
-    let mut a_bytes = a.to_le_bytes().to_vec();
-    while let Some(&0) = a_bytes.last() {
-        a_bytes.pop(); // Remove trailing zeros
-    }
-    a_bytes
-}
-
-pub fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u32> {
+pub fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u8> {
     let mut digits = Vec::new();
     if digit_count == -1 {
         while number > 0 {
@@ -33,5 +25,10 @@ pub fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u32> {
             digits.push(digit);
         }
     }
-    digits
+    let mut digits_u8: Vec<u8> = vec![0; digits.len()];
+    for (i, num) in digits.iter().enumerate(){
+        let bytes = num.to_le_bytes(); // Convert u32 to 4 bytes (little-endian)
+        digits_u8[i] = bytes[0];
+    }
+    digits_u8
 }
