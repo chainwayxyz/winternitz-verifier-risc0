@@ -5,7 +5,7 @@ pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
 use crate::utils::*;
 use bitcoin::{
-    bech32::primitives::checksum, hashes::{hash160, Hash}, p2p::message, Witness
+    bech32::primitives::checksum, hashes::{hash160, Hash}, p2p::message, params, Witness
 };
 
 use sha2::{Digest, Sha256};
@@ -154,4 +154,18 @@ pub fn hash160(input: &[u8]) -> HashOut {
     let hash = Sha256::digest(&input);
     let hash = Ripemd160::digest(&hash);
     return hash.into();
+}
+
+
+pub fn verify_winternitz_and_groth16(pub_key: &Vec<[u8; 20]> , signature: &Vec<Vec<u8>>, message: &Vec<u8>, params: &Parameters){
+    if !verify_signature(&pub_key, &signature, message.clone(), &params).unwrap() {
+        panic!("Verification failed");
+    }
+
+    let a: [u8; 32] = message[0..32].try_into().unwrap();
+    let b: [u8; 64] = message[32..96].try_into().unwrap();
+    let c: [u8; 32] = message[96..128].try_into().unwrap();
+    let total_work: [u8; 16] = message[128..144].try_into().unwrap();
+    println!("{:?}", total_work);
+
 }
