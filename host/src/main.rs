@@ -6,7 +6,7 @@ use header_chain::header_chain::{
 use std::convert::TryInto;
 use headerchain::{HEADERCHAIN_ELF, HEADERCHAIN_ID};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_zkvm::{compute_image_id, default_prover, ExecutorEnv, ProverOpts, Receipt};
+use risc0_zkvm::{compute_image_id, default_executor, default_prover, Executor, ExecutorEnv, ProverOpts, Receipt};
 use risc0_groth16::Seal;
 use winternitz::{WINTERNITZ_ELF, WINTERNITZ_ID};
 use winternitz_core::{generate_public_key, sign_digits, Parameters};
@@ -40,12 +40,14 @@ fn main() {
     let b_compressed  = g2_compress(seal.b);
     let c_compressed = g1_compress(seal.c);
 
-    let mut compressed_proof: Vec<u8> = vec![0; 128];
+    let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt.journal.bytes.try_into().unwrap();
+
+    let mut compressed_proof: Vec<u8> = vec![0; 144];
     compressed_proof[0..32].copy_from_slice(&a_compressed[..32]);
     compressed_proof[32..96].copy_from_slice(&b_compressed[..64]);
     compressed_proof[96..128].copy_from_slice(&c_compressed[..32]);
+    compressed_proof[128..144].copy_from_slice(&commited_total_work);
     
-    let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt.journal.bytes.try_into().unwrap();
 
     let n0 = compressed_proof.len();
     let log_d = 8;
@@ -54,6 +56,8 @@ fn main() {
     let mut rng = SmallRng::seed_from_u64(input);
     let secret_key: Vec<u8> = (0..n0).map(|_| rng.gen()).collect();
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
+
+
     let signature = sign_digits(&params, &secret_key, &compressed_proof);
     let env = ExecutorEnv::builder()
         .write(&pub_key)
@@ -64,17 +68,14 @@ fn main() {
         .unwrap()
         .write(&compressed_proof)
         .unwrap()
-        .write(&commited_total_work)
-        .unwrap()
         .write(&WORK_ONLY_ID)
         .unwrap()
         .build()
         .unwrap();
 
-    let prover = default_prover();
-    let prove_info = prover.prove(env, WINTERNITZ_ELF).unwrap();
-    let receipt = prove_info.receipt;
-    receipt.verify(WINTERNITZ_ID).unwrap();
+    
+    let executor = default_executor();
+    println!("Exec result: {:?}", executor.execute(env, WINTERNITZ_ELF).unwrap());
 }
 
 fn call_work_only(
@@ -137,3 +138,4 @@ fn generate_header_chain_proof() -> Receipt {
 
     return receipt;
 }
+
