@@ -1,4 +1,5 @@
-use ark_bn254::{g1, G1Affine};
+use ark_bn254::{g1, Bn254, G1Affine};
+use ark_ff::PrimeField;
 use serde::{Deserialize, Serialize};
 mod utils;
 type HashOut = [u8; 20];
@@ -19,7 +20,7 @@ use num_traits::{Zero, One};
 use std::convert::TryInto;
 use risc0_groth16::{verifying_key, Seal};
 use ark_bn254;
-use ark_groth16::{Proof, G1};
+use ark_groth16::{Proof};
 
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
@@ -183,7 +184,32 @@ pub fn verify_winternitz_and_groth16(pub_key: &Vec<[u8; 20]> , signature: &Vec<V
     let a_decompressed = g1_decompress(&a).unwrap();
     let b_decompressed = g2_decompress(&b).unwrap();
     let c_decompressed = g1_decompress(&c).unwrap();
-    
+
+    let a0_serialized = a_decompressed[0].to_bytes_be();
+    let a1_serialized = a_decompressed[1].to_bytes_be();
+    let b00_serialized = b_decompressed[0].to_bytes_be();
+    let b01_serialized = b_decompressed[1].to_bytes_be();
+    let b10_serialized = b_decompressed[2].to_bytes_be();
+    let b11_serialized = b_decompressed[3].to_bytes_be();
+    let c0_serialized = c_decompressed[0].to_bytes_be();
+    let c1_serialized = c_decompressed[1].to_bytes_be();
+
+    let ark_bn254_a = 
+    ark_bn254::G1Affine::new(ark_bn254::Fq::from_be_bytes_mod_order(&a0_serialized), ark_bn254::Fq::from_be_bytes_mod_order(&a1_serialized));
+
+    let ark_bn254_c = 
+    ark_bn254::G1Affine::new(ark_bn254::Fq::from_be_bytes_mod_order(&c0_serialized), ark_bn254::Fq::from_be_bytes_mod_order(&c1_serialized));
+
+    let ark_bn254_b = 
+    ark_bn254::G2Affine::new(
+                ark_bn254::Fq2::new(ark_bn254::Fq::from_be_bytes_mod_order(&b00_serialized), ark_bn254::Fq::from_be_bytes_mod_order(&b01_serialized)),
+                ark_bn254::Fq2::new(ark_bn254::Fq::from_be_bytes_mod_order(&b10_serialized), ark_bn254::Fq::from_be_bytes_mod_order(&b11_serialized)));
+
+    let ark_proof = Proof::<Bn254> {
+        a: ark_bn254_a.into(),
+        b: ark_bn254_b.into(),
+        c: ark_bn254_c.into(),
+    };
     
     println!("{:?}", total_work);
 
