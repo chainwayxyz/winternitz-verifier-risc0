@@ -1,29 +1,25 @@
-mod utils;
+pub mod utils;
 mod constants;
+pub mod groth16;
+use ark_bn254;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
+use ark_groth16::{prepare_verifying_key, Proof};
+use ark_std::vec::Vec;
+use bitcoin::hashes::{self, Hash};
+use constants::*;
+use hex::ToHex;
+use num_bigint::BigUint;
+use num_traits::Num;
+use num_traits::{One, Zero};
 use risc0_zkvm::Groth16ReceiptVerifierParameters;
 use serde::{Deserialize, Serialize};
-
-type HashOut = [u8; 20];
-pub type PublicKey = Vec<HashOut>;
-pub type SecretKey = Vec<u8>;
-use crate::utils::*;
-use bitcoin::hashes::{hash160, Hash};
-use ark_bn254;
-use ark_groth16::{Proof, prepare_verifying_key};
-use ark_std::vec::Vec;
-use num_bigint::BigUint;
-use num_traits::{One, Zero};
-use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 use std::str::FromStr;
-use hex::ToHex;
-use num_traits::Num;
-use constants::*;
-
-
+use utils::*;
+pub type PublicKey = Vec<HashOut>;
+pub type SecretKey = Vec<u8>;
 #[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
 pub struct Parameters {
     n0: u32,
@@ -59,10 +55,10 @@ impl Parameters {
 fn public_key_for_digit(ps: &Parameters, secret_key: &SecretKey, digit_index: u32) -> HashOut {
     let mut secret_i = secret_key.clone();
     secret_i.push(digit_index as u8);
-    let mut hash = hash160::Hash::hash(&secret_i);
+    let mut hash = hashes::hash160::Hash::hash(&secret_i);
 
     for _ in 0..ps.d {
-        hash = hash160::Hash::hash(&hash[..]);
+        hash = hashes::hash160::Hash::hash(&hash[..]);
     }
 
     *hash.as_byte_array()
@@ -75,9 +71,9 @@ pub fn digit_signature(
 ) -> DigitSignature {
     let mut secret_i = secret_key.clone();
     secret_i.push(digit_index as u8);
-    let mut hash = hash160::Hash::hash(&secret_i);
+    let mut hash = hashes::hash160::Hash::hash(&secret_i);
     for _ in 0..message_digit {
-        hash = hash160::Hash::hash(&hash[..]);
+        hash = hashes::hash160::Hash::hash(&hash[..]);
     }
     let hash_bytes = hash.as_byte_array().to_vec();
     DigitSignature { hash_bytes }
@@ -169,12 +165,6 @@ pub fn verify_signature(
     Ok(true)
 }
 
-pub fn hash160(input: &[u8]) -> HashOut {
-    let hash = Sha256::digest(&input);
-    let hash = Ripemd160::digest(&hash);
-    return hash.into();
-}
-
 pub fn to_decimal(s: &str) -> Option<String> {
     let int = BigUint::from_str_radix(s, 16).ok();
     int.map(|n| n.to_str_radix(10))
@@ -240,7 +230,8 @@ pub fn verify_winternitz_and_groth16(
     println!("Proof created");
 
     let vk: ark_groth16::VerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> = create_verifying_key();
-    let prepared_vk:ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> = prepare_verifying_key(&vk);
+    let prepared_vk: ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
+        prepare_verifying_key(&vk);
     println!("Verifying key created");
 
     let output_tag: [u8; 32] = hex::decode(OUTPUT_TAG).unwrap().try_into().unwrap();
@@ -249,11 +240,16 @@ pub fn verify_winternitz_and_groth16(
     let len_output: [u8; 2] = hex::decode("0200").unwrap().try_into().unwrap();
     let mut output_pre_digest: [u8; 98] = [0; 98];
 
-    output_pre_digest[0..32].copy_from_slice(&output_tag);
-    output_pre_digest[32..64].copy_from_slice(&total_work_digest);
-    output_pre_digest[64..96].copy_from_slice(&assumptions_bytes);
-    output_pre_digest[96..98].copy_from_slice(&len_output);
-    
+    let concantenated_output = [
+        &output_tag[..],
+        &total_work_digest[..],
+        &assumptions_bytes[..],
+        &len_output[..],
+    ].concat();
+
+    output_pre_digest.copy_from_slice(&concantenated_output);
+
+
     let output_digest = Sha256::digest(output_pre_digest);
 
     let pre_state_bytes: [u8; 32] = hex::decode(PRE_STATE_HEX).unwrap().try_into().unwrap();
@@ -267,13 +263,18 @@ pub fn verify_winternitz_and_groth16(
 
     let claim_len: [u8; 2] = [4, 0];
 
-    claim_pre_digest[0..32].copy_from_slice(&claim_tag);
-    claim_pre_digest[32..64].copy_from_slice(&input_bytes);
-    claim_pre_digest[64..96].copy_from_slice(&pre_state_bytes);
-    claim_pre_digest[96..128].copy_from_slice(&post_state_bytes);
-    claim_pre_digest[128..160].copy_from_slice(&output_digest);
-    claim_pre_digest[160..168].copy_from_slice(&data);
-    claim_pre_digest[168..170].copy_from_slice(&claim_len);
+    let concatenated = [
+        &claim_tag[..],
+        &input_bytes[..],
+        &pre_state_bytes[..],
+        &post_state_bytes[..],
+        &output_digest[..],
+        &data[..],
+        &claim_len[..],
+    ]
+    .concat();
+
+    claim_pre_digest.copy_from_slice(&concatenated);
 
     let mut claim_digest = Sha256::digest(&claim_pre_digest);
     claim_digest.reverse();
@@ -288,10 +289,11 @@ pub fn verify_winternitz_and_groth16(
     let groth16_receipt_verifier_params = Groth16ReceiptVerifierParameters::default();
 
     let groth16_control_root = groth16_receipt_verifier_params.control_root;
-    let mut groth16_control_root_bytes: [u8; 32] = groth16_control_root.as_bytes().try_into().unwrap();
+    let mut groth16_control_root_bytes: [u8; 32] =
+        groth16_control_root.as_bytes().try_into().unwrap();
     groth16_control_root_bytes.reverse();
 
-    // convert to be bytes 
+    // convert to be bytes
 
     let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
     let a1_str = groth16_control_root_bytes[0..32].to_string();
@@ -300,89 +302,29 @@ pub fn verify_winternitz_and_groth16(
     let a1_dec = to_decimal(&a1_str).unwrap();
     let a0_dec = to_decimal(&a0_str).unwrap();
 
-    let mut bn254_control_id_bytes: [u8; 32] = hex::decode(BN254_CONTROL_ID_HEX).unwrap().try_into().unwrap();
+    let mut bn254_control_id_bytes: [u8; 32] = hex::decode(BN254_CONTROL_ID_HEX)
+        .unwrap()
+        .try_into()
+        .unwrap();
     bn254_control_id_bytes.reverse();
 
     let bn254_control_id_bytes: String = bn254_control_id_bytes.encode_hex();
-
 
     let bn254_control_id_dec = to_decimal(&bn254_control_id_bytes).unwrap();
 
     let mut public_inputs = Vec::new();
 
-    public_inputs.push(Fr::from_str(&a0_dec).unwrap());
-    public_inputs.push(Fr::from_str(&a1_dec).unwrap());
-    public_inputs.push(Fr::from_str(&c1_dec).unwrap());
-    public_inputs.push(Fr::from_str(&c0_dec).unwrap());
-    public_inputs.push(Fr::from_str(&bn254_control_id_dec).unwrap());
+    let values = [&a0_dec, &a1_dec, &c1_dec, &c0_dec, &bn254_control_id_dec];
 
-    println!("Public inputs: {:?}", public_inputs);
-
-    println!("{}", ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs).unwrap());
-
-}
-
-pub fn g2_compress(point: Vec<Vec<Vec<u8>>>) -> Vec<u8> {
-    let x_real = BigUint::from_bytes_be(&point[0][1]);
-    let x_imaginary = BigUint::from_bytes_be(&point[0][0]);
-    let y_real = BigUint::from_bytes_be(&point[1][1]);
-    let y_img = BigUint::from_bytes_be(&point[1][0]);
+    public_inputs.extend(values.iter().map(|&v| Fr::from_str(v).unwrap()));
 
     println!(
-        "x_real: {:?}, x_imaginary: {:?}, y_real: {:?}, y_img: {:?}",
-        x_real, x_imaginary, y_real, y_img
+        "{}",
+        ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
+            .unwrap()
     );
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-
-    let y_neg = negate_bigint(&y_real, &modulus);
-
-    let sign: u8 = if y_real < y_neg { 0x1 } else { 0x0 };
-
-    let const_27_82 = BigUint::parse_bytes(CONST_27_82, 10).unwrap();
-    let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
-
-    let n3ab = (&x_real * &x_imaginary * (&modulus - BigUint::from(3u8))) % &modulus;
-    let a_3 = (&x_real * &x_real * &x_real) % &modulus;
-    let b_3 = (&x_imaginary * &x_imaginary * &x_imaginary) % &modulus;
-
-    let m = (&const_27_82 + &a_3 + ((&n3ab * &x_imaginary) % &modulus)) % &modulus;
-    let n = negate_bigint(
-        &((&const_3_82 + &b_3 + (&n3ab * &x_real)) % &modulus),
-        &modulus,
-    );
-
-    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus), &modulus);
-
-    let d_check = (y_real.pow(2) + y_img.pow(2)) % modulus;
-
-    let hint = if d == d_check { 0x0 } else { 0x2 };
-
-    let flag = sign | hint;
-
-    let compressed_x0 = (&x_real << 2) | BigUint::from(flag);
-    let compressed_x1 = x_imaginary;
-
-    let mut compressed = Vec::new();
-    compressed.extend_from_slice(&bigint_to_bytes(&compressed_x0));
-    compressed.extend_from_slice(&bigint_to_bytes(&compressed_x1));
-    compressed
 }
 
-fn sqrt_f2(a0: BigUint, a1: BigUint, hint: bool, modulus: &BigUint) -> (BigUint, BigUint) {
-    let const_1_2 = BigUint::parse_bytes(CONST_1_2, 10).unwrap();
-    let d = sqrt_fp(&((a0.pow(2) + &a1.pow(2)) % modulus), modulus);
-    let d = if hint { negate_bigint(&d, modulus) } else { d };
-    let x0 = sqrt_fp(&((((&a0 + &d) % modulus) * const_1_2) % modulus), modulus);
-    let x1 = (&a1 * mod_inverse(&(&BigUint::from(2u8) * (&x0)), modulus)) % modulus;
-
-    assert_eq!(
-        a0,
-        (x0.clone().pow(2) + negate_bigint(&(x1.clone().pow(2)), modulus)) % modulus
-    );
-    assert_eq!(a1, (BigUint::from(2u8) * x0.clone() * x1.clone()) % modulus);
-
-    (x0, x1)
-}
 
 pub fn g2_decompress(compressed: &[u8]) -> Option<[BigUint; 4]> {
     if compressed.len() != 64 {
@@ -416,23 +358,7 @@ pub fn g2_decompress(compressed: &[u8]) -> Option<[BigUint; 4]> {
     Some([x0, x1, y0, y1])
 }
 
-pub fn g1_compress(point: Vec<Vec<u8>>) -> Vec<u8> {
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
 
-    let x = BigUint::from_bytes_be(&point[0]);
-    let y = BigUint::from_bytes_be(&point[1]);
-
-    println!("x: {:?}, y: {:?}", x, y);
-
-    let y_neg = negate_bigint(&y, &modulus);
-    let sign: u8 = if y < y_neg { 0x1 } else { 0x0 };
-
-    let compressed = (&x << 1) | BigUint::from(sign);
-
-    bigint_to_bytes(&compressed).to_vec()
-}
-
-/// Decompress a G1 point from a byte vector
 pub fn g1_decompress(compressed: &[u8]) -> Option<[BigUint; 2]> {
     if compressed.len() != 32 {
         return None;
@@ -451,45 +377,4 @@ pub fn g1_decompress(compressed: &[u8]) -> Option<[BigUint; 2]> {
         y
     };
     Some([x, y])
-}
-
-pub(crate) fn negate_bigint(value: &BigUint, modulus: &BigUint) -> BigUint {
-    if value.is_zero() {
-        BigUint::zero()
-    } else {
-        modulus - (value % modulus)
-    }
-}
-
-fn mod_inverse(value: &BigUint, modulus: &BigUint) -> BigUint {
-    value.modpow(&(modulus - BigUint::from(2u8)), modulus)
-}
-
-fn bytes_to_bigint(bytes: &[u8; 32]) -> BigUint {
-    BigUint::from_bytes_be(bytes)
-}
-
-fn sqrt_fp(value: &BigUint, modulus: &BigUint) -> BigUint {
-    let exp_sqrt = BigUint::parse_bytes(EXP_SQRT, 10).unwrap();
-    let result = value.modpow(&exp_sqrt, modulus);
-    let neg_result = negate_bigint(&result, modulus);
-    let result = if neg_result > result {
-        neg_result
-    } else {
-        result
-    };
-    assert_eq!(
-        (&result * &result) % modulus,
-        *value,
-        "Square root verification failed"
-    );
-    result
-}
-
-fn bigint_to_bytes(value: &BigUint) -> [u8; 32] {
-    let mut bytes = [0u8; 32];
-    let value_bytes = value.to_bytes_be();
-    let len = value_bytes.len();
-    bytes[32 - len..].copy_from_slice(&value_bytes);
-    bytes
 }

@@ -1,6 +1,6 @@
 use bitcoin::Witness;
 use risc0_zkvm::guest::env;
-use winternitz_core::{hash160, verify_winternitz_and_groth16, Parameters, PublicKey};
+use winternitz_core::{utils::hash160, verify_winternitz_and_groth16, Parameters, PublicKey};
 
 fn main() {
     let pub_key: PublicKey = env::read();
