@@ -1,26 +1,24 @@
 use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
-BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
+    BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
 };
-use headerchain::{HEADERCHAIN_ELF, HEADERCHAIN_ID};
+use headerchain::HEADERCHAIN_ELF;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_groth16::{Seal, self};
+use risc0_groth16::{self, Seal};
 use risc0_zkvm::{
-    compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt
+    compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt,
 };
-
 use std::convert::TryInto;
 use winternitz::WINTERNITZ_ELF;
-use winternitz_core::{g1_compress, g2_compress, generate_public_key, sign_digits, Parameters};
+use winternitz_core::{generate_public_key, sign_digits, Parameters};
 use work_only::{WORK_ONLY_ELF, WORK_ONLY_ID};
-
+use winternitz_core::groth16::Groth16Seal;
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 
 fn main() {
     let headerchain_proof: Receipt = generate_header_chain_proof();
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
-    println!("{:?}", block_header_circuit_output.method_id);
     let work_only_groth16_proof_receipt: Receipt = call_work_only(
         headerchain_proof,
         &block_header_circuit_output,
@@ -30,11 +28,9 @@ fn main() {
     let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
 
-    let seal = Seal::from_vec(&g16_proof.seal).unwrap();
+    let seal = Groth16Seal::from_seal(g16_proof.seal.as_slice().try_into().unwrap());
 
-    let a_compressed: Vec<u8> = g1_compress(seal.a);
-    let b_compressed: Vec<u8> = g2_compress(seal.b);
-    let c_compressed: Vec<u8> = g1_compress(seal.c);
+    let compressed_proof = seal.get_compressed();
 
     let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt
         .journal
@@ -42,11 +38,9 @@ fn main() {
         .try_into()
         .unwrap();
 
-    let mut compressed_proof: Vec<u8> = vec![0; 144];
-    compressed_proof[0..32].copy_from_slice(&a_compressed[..32]);
-    compressed_proof[32..96].copy_from_slice(&b_compressed[..64]);
-    compressed_proof[96..128].copy_from_slice(&c_compressed[..32]);
-    compressed_proof[128..144].copy_from_slice(&commited_total_work);
+    let mut compressed_proof_and_total_work: Vec<u8> = vec![0; 144];
+    compressed_proof_and_total_work[0..128].copy_from_slice(&compressed_proof);
+    compressed_proof_and_total_work[128..144].copy_from_slice(&commited_total_work);
 
     let n0 = compressed_proof.len();
     let log_d = 8;
@@ -55,8 +49,8 @@ fn main() {
     let mut rng = SmallRng::seed_from_u64(input);
     let secret_key: Vec<u8> = (0..n0).map(|_| rng.gen()).collect();
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
-    
-    let signature = sign_digits(&params, &secret_key, &compressed_proof);
+
+    let signature = sign_digits(&params, &secret_key, &compressed_proof_and_total_work);
     let env = ExecutorEnv::builder()
         .write(&pub_key)
         .unwrap()
@@ -64,7 +58,7 @@ fn main() {
         .unwrap()
         .write(&signature)
         .unwrap()
-        .write(&compressed_proof)
+        .write(&compressed_proof_and_total_work)
         .unwrap()
         .write(&WORK_ONLY_ID)
         .unwrap()
