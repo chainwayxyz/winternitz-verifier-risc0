@@ -1,26 +1,35 @@
+use ark_bn254::Fr;
 use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
-    BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput,
-    HeaderChainPrevProofType,
+BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
 };
-use std::convert::TryInto;
 use headerchain::{HEADERCHAIN_ELF, HEADERCHAIN_ID};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_zkvm::{compute_image_id, default_executor, default_prover, guest::env::verify, Executor, ExecutorEnv, ProverOpts, Receipt};
 use risc0_groth16::{verifying_key, Seal};
+use risc0_zkvm::{
+    compute_image_id, default_executor, default_prover, guest::env::verify, Executor, ExecutorEnv,
+    ProverOpts, Receipt,
+};
+use std::convert::TryInto;
 use winternitz::{WINTERNITZ_ELF, WINTERNITZ_ID};
-use winternitz_core::{generate_public_key, sign_digits, Parameters, g1_compress, g2_compress};
+use winternitz_core::{g1_compress, g2_compress, generate_public_key, sign_digits, Parameters};
 use work_only::{WORK_ONLY_ELF, WORK_ONLY_ID};
+use ark_ff::PrimeField;
 
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 
 fn le_to_be(input: [u32; 16]) -> [u32; 16] {
     let mut output = input;
-    output.chunks_exact_mut(4).for_each(|chunk| { chunk.reverse(); println!("{:?}", chunk) });
+    output.chunks_exact_mut(4).for_each(|chunk| {
+        chunk.reverse();
+        println!("{:?}", chunk)
+    });
     output.reverse();
     output
 }
 fn main() {
+    let verifiying_key: risc0_groth16::VerifyingKey = verifying_key();
+    println!("ver_key: {:#?}", verifiying_key);
     let headerchain_proof: Receipt = generate_header_chain_proof();
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
@@ -30,24 +39,29 @@ fn main() {
         &block_header_circuit_output,
         block_header_circuit_output.method_id,
     );
-        
-    let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> = work_only_groth16_proof_receipt.inner.groth16().unwrap();
-    
-    let seal= Seal::from_vec(&g16_proof.seal).unwrap();
 
+
+
+    let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
+        work_only_groth16_proof_receipt.inner.groth16().unwrap();
+
+    let seal = Seal::from_vec(&g16_proof.seal).unwrap();
 
     let a_compressed = g1_compress(seal.a);
-    let b_compressed  = g2_compress(seal.b);
+    let b_compressed = g2_compress(seal.b);
     let c_compressed = g1_compress(seal.c);
 
-    let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt.journal.bytes.try_into().unwrap();
+    let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt
+        .journal
+        .bytes
+        .try_into()
+        .unwrap();
 
     let mut compressed_proof: Vec<u8> = vec![0; 144];
     compressed_proof[0..32].copy_from_slice(&a_compressed[..32]);
     compressed_proof[32..96].copy_from_slice(&b_compressed[..64]);
     compressed_proof[96..128].copy_from_slice(&c_compressed[..32]);
     compressed_proof[128..144].copy_from_slice(&commited_total_work);
-    
 
     let n0 = compressed_proof.len();
     let log_d = 8;
@@ -56,8 +70,7 @@ fn main() {
     let mut rng = SmallRng::seed_from_u64(input);
     let secret_key: Vec<u8> = (0..n0).map(|_| rng.gen()).collect();
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
-
-
+    
     let signature = sign_digits(&params, &secret_key, &compressed_proof);
     let env = ExecutorEnv::builder()
         .write(&pub_key)
@@ -73,9 +86,7 @@ fn main() {
         .build()
         .unwrap();
 
-    
     let executor = default_executor();
-
 
     println!("Exec result: {:?}", executor.execute(env, WINTERNITZ_ELF));
 }
@@ -140,4 +151,3 @@ fn generate_header_chain_proof() -> Receipt {
 
     return receipt;
 }
-
