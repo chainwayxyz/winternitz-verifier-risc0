@@ -1,20 +1,19 @@
-use ark_bn254::Fr;
+use ark_bn254::{g1, Fr};
 use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
 BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
 };
 use headerchain::{HEADERCHAIN_ELF, HEADERCHAIN_ID};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_groth16::{verifying_key, Seal};
+use risc0_groth16::{verifying_key, Seal, self};
 use risc0_zkvm::{
-    compute_image_id, default_executor, default_prover, guest::env::verify, Executor, ExecutorEnv,
-    ProverOpts, Receipt,
+    compute_image_id, default_executor, default_prover, guest::env, ExecutorEnv, ProverOpts, Receipt
 };
+
 use std::convert::TryInto;
 use winternitz::{WINTERNITZ_ELF, WINTERNITZ_ID};
 use winternitz_core::{g1_compress, g2_compress, generate_public_key, sign_digits, Parameters};
 use work_only::{WORK_ONLY_ELF, WORK_ONLY_ID};
-use ark_ff::PrimeField;
 
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 
@@ -40,10 +39,15 @@ fn main() {
         block_header_circuit_output.method_id,
     );
 
+    println!("Work Only Groth16 Proof Receipt: {:?}", work_only_groth16_proof_receipt);
+
 
 
     let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
+
+
+
 
     let seal = Seal::from_vec(&g16_proof.seal).unwrap();
 
@@ -62,6 +66,8 @@ fn main() {
     compressed_proof[32..96].copy_from_slice(&b_compressed[..64]);
     compressed_proof[96..128].copy_from_slice(&c_compressed[..32]);
     compressed_proof[128..144].copy_from_slice(&commited_total_work);
+
+
 
     let n0 = compressed_proof.len();
     let log_d = 8;
@@ -85,7 +91,6 @@ fn main() {
         .unwrap()
         .build()
         .unwrap();
-
     let executor = default_executor();
 
     println!("Exec result: {:?}", executor.execute(env, WINTERNITZ_ELF));

@@ -1,32 +1,25 @@
 use ark_bn254::{Bn254, Fq, Fq2, Fr, G1Affine, G2Affine};
-use ark_ec::{pairing::{self, Pairing}, AffineRepr, CurveGroup};
-use ark_ff::{PrimeField, Field};
-use std::ops::Neg;
+use ark_crypto_primitives::snark::SNARK;
+use ark_ff::PrimeField;
+use risc0_zkvm::Groth16ReceiptVerifierParameters;
 use serde::{Deserialize, Serialize};
 mod utils;
 type HashOut = [u8; 20];
 pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
 use crate::utils::*;
-use bitcoin::{
-    bech32::primitives::checksum,
-    hashes::{hash160, Hash},
-    p2p::message,
-    params, Witness,
-};
-
+use bitcoin::hashes::{hash160, Hash};
 use ark_bn254;
-use ark_groth16::{prepare_verifying_key, PreparedVerifyingKey, Proof, VerifyingKey};
+use ark_groth16::{prepare_verifying_key, Groth16, Proof, VerifyingKey};
 use ark_std::vec::Vec;
-use borsh::{BorshDeserialize, BorshSerialize};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 use ripemd::Ripemd160;
-use risc0_groth16::{verifying_key, Seal};
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 use std::str::FromStr;
-
+use hex::ToHex;
+use num_traits::Num;
 
 pub fn create_verifying_key() -> VerifyingKey<Bn254> {
     // G1 elements are points on the BN254 curve over the base field Fq.
@@ -258,6 +251,11 @@ pub fn hash160(input: &[u8]) -> HashOut {
     return hash.into();
 }
 
+pub fn to_decimal(s: &str) -> Option<String> {
+    let int = BigUint::from_str_radix(s, 16).ok();
+    int.map(|n| n.to_str_radix(10))
+}
+
 pub fn verify_winternitz_and_groth16(
     pub_key: &Vec<[u8; 20]>,
     signature: &Vec<Vec<u8>>,
@@ -312,20 +310,91 @@ pub fn verify_winternitz_and_groth16(
         b: ark_bn254_b.into(),
         c: ark_bn254_c.into(),
     };
+
+    println!("Proof: {:?}", ark_proof);
+
     println!("Proof created");
 
     let vk = create_verifying_key();
     let prepared_vk:ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> = prepare_verifying_key(&vk);
     println!("Verifying key created");
+
+    let output_tag: [u8; 32] = hex::decode("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4").unwrap().try_into().unwrap();
+    let total_work_digest: [u8; 32] = Sha256::digest(&total_work).try_into().unwrap();
+    let assumptions_bytes: [u8; 32] = hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap().try_into().unwrap();
+    let len_output: [u8; 2] = hex::decode("0200").unwrap().try_into().unwrap();
+    let mut output_pre_digest: [u8; 98] = [0; 98];
+
+    output_pre_digest[0..32].copy_from_slice(&output_tag);
+    output_pre_digest[32..64].copy_from_slice(&total_work_digest);
+    output_pre_digest[64..96].copy_from_slice(&assumptions_bytes);
+    output_pre_digest[96..98].copy_from_slice(&len_output);
+    
+    let output_digest = Sha256::digest(output_pre_digest);
+
+    println!("Output digest: {:?}", output_digest);
+
+    let pre_state_bytes: [u8; 32] = hex::decode("7c213e03c7ff5c4c000904c38317fa2482c09c1dc66d2e9eb6b257e9546c5f17").unwrap().try_into().unwrap();
+    let post_state_bytes: [u8; 32] = hex::decode("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2").unwrap().try_into().unwrap();
+    let input_bytes: [u8; 32] = hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap().try_into().unwrap();
+
+    let claim_tag: [u8; 32] = hex::decode("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af").unwrap().try_into().unwrap();
+    let mut claim_pre_digest: [u8; 170] = [0; 170];
+
+    let data: [u8; 8] = [0; 8];
+
+    let claim_len: [u8; 2] = [4, 0];
+
+    claim_pre_digest[0..32].copy_from_slice(&claim_tag);
+    claim_pre_digest[32..64].copy_from_slice(&input_bytes);
+    claim_pre_digest[64..96].copy_from_slice(&pre_state_bytes);
+    claim_pre_digest[96..128].copy_from_slice(&post_state_bytes);
+    claim_pre_digest[128..160].copy_from_slice(&output_digest);
+    claim_pre_digest[160..168].copy_from_slice(&data);
+    claim_pre_digest[168..170].copy_from_slice(&claim_len);
+
+    let claim_digest = Sha256::digest(&claim_pre_digest);
+
+    let claim_digest_hex: String = claim_digest.encode_hex();
+    let c0_str = claim_digest_hex[0..32].to_string();
+    let c1_str = claim_digest_hex[32..64].to_string();
+
+    let c0_dec = to_decimal(&c0_str).unwrap();
+    let c1_dec = to_decimal(&c1_str).unwrap();
+
+
+    println!("Claim digest: {:?}", claim_digest);
+
+    let groth16_receipt_verifier_params = Groth16ReceiptVerifierParameters::default();
+
+    let groth16_control_root = groth16_receipt_verifier_params.control_root;
+    println!("Control root: {:?}", groth16_control_root);
+    let mut groth16_control_root_bytes: [u8; 32] = groth16_control_root.as_bytes().try_into().unwrap();
+    groth16_control_root_bytes.reverse();
+
+    // convert to be bytes 
+
+    let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
+    let a1_str = groth16_control_root_bytes[0..32].to_string();
+    let a0_str = groth16_control_root_bytes[32..64].to_string();
+
+    let a1_dec = to_decimal(&a1_str).unwrap();
+    let a0_dec = to_decimal(&a0_str).unwrap();
+
+    let bn254_control_id_bytes: [u8; 32] = hex::decode("c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404").unwrap().try_into().unwrap();
+
+    let bn254_control_id_bytes: String = bn254_control_id_bytes.encode_hex();
+
+
+    let bn254_control_id_dec = to_decimal(&bn254_control_id_bytes).unwrap();
+
     let mut public_inputs = Vec::new();
 
-    // Convert bytes to field elements
-    for chunk in total_work.chunks(32) { // Adjust chunk size based on field element size
-        let scalar = Fr::from_le_bytes_mod_order(chunk);
-        public_inputs.push(scalar);
-    }
-    println!("total work: {:?}", total_work);
-
+    public_inputs.push(Fr::from_str(&a0_dec).unwrap());
+    public_inputs.push(Fr::from_str(&a1_dec).unwrap());
+    public_inputs.push(Fr::from_str(&c0_dec).unwrap());
+    public_inputs.push(Fr::from_str(&c1_dec).unwrap());
+    public_inputs.push(Fr::from_str(&bn254_control_id_dec).unwrap());
 
     println!("{}", ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs).unwrap());
 
