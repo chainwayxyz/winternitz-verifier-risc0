@@ -1,5 +1,4 @@
-pub fn log_base_ceil(n: u32, base: u32) -> u32 { 
-
+pub fn log_base_ceil(n: u32, base: u32) -> u32 {
     let mut res: u32 = 0;
     let mut cur: u64 = 1;
     while cur < (n as u64) {
@@ -16,7 +15,7 @@ pub fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u8> {
             let digit = number % base;
             number = (number - digit) / base;
             digits.push(digit);
-        }   
+        }
     } else {
         digits.reserve(digit_count as usize);
         for _ in 0..digit_count {
@@ -26,7 +25,7 @@ pub fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u8> {
         }
     }
     let mut digits_u8: Vec<u8> = vec![0; digits.len()];
-    for (i, num) in digits.iter().enumerate(){
+    for (i, num) in digits.iter().enumerate() {
         let bytes = num.to_le_bytes(); // Convert u32 to 4 bytes (little-endian)
         digits_u8[i] = bytes[0];
     }
