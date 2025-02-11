@@ -95,9 +95,9 @@ impl Groth16Seal {
         let c = g1_compress(vec![self.c.x.to_vec(), self.c.y.to_vec()]);
 
         let mut compressed = [0u8; 128];
-        compressed[0..64].copy_from_slice(&a);
-        compressed[64..128].copy_from_slice(&b);
-        compressed[128..192].copy_from_slice(&c);
+        compressed[0..32].copy_from_slice(&a);
+        compressed[32..96].copy_from_slice(&b);
+        compressed[96..128].copy_from_slice(&c);
 
         compressed
         
