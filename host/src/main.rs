@@ -42,7 +42,7 @@ fn main() {
     compressed_proof_and_total_work[0..128].copy_from_slice(&compressed_proof);
     compressed_proof_and_total_work[128..144].copy_from_slice(&commited_total_work);
 
-    let n0 = compressed_proof.len();
+    let n0 = compressed_proof_and_total_work.len();
     let log_d = 8;
     let params = Parameters::new(n0.try_into().unwrap(), log_d);
     let input: u64 = 1;
