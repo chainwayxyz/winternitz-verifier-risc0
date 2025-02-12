@@ -3,3 +3,4 @@ Cargo.lock
 winternitz/guest/Cargo.lock
 target/
 profile.pb
+.vscode/*
