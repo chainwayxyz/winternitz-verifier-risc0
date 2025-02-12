@@ -1,6 +1,6 @@
-pub mod utils;
 mod constants;
 pub mod groth16;
+pub mod utils;
 use ark_bn254;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
@@ -8,10 +8,10 @@ use ark_groth16::{prepare_verifying_key, Proof};
 use ark_std::vec::Vec;
 use bitcoin::hashes::{self, Hash};
 use constants::*;
+use groth16::Groth16Seal;
 use hex::ToHex;
 use num_bigint::BigUint;
 use num_traits::Num;
-use num_traits::{One, Zero};
 use risc0_zkvm::Groth16ReceiptVerifierParameters;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -95,13 +95,13 @@ fn checksum(ps: &Parameters, digits: Vec<u8>) -> u32 {
     ps.d * ps.n0 - sum
 }
 
-fn add_message_checksum(ps: &Parameters, digits: &Vec<u8>) -> Vec<u8> {
+fn get_message_checksum(ps: &Parameters, digits: &Vec<u8>) -> Vec<u8> {
     let checksum_digits = to_digits(checksum(ps, digits.clone()), ps.d + 1, ps.n1 as i32);
     checksum_digits
 }
 
 pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &Vec<u8>) -> Vec<Vec<u8>> {
-    let cheksum1 = add_message_checksum(ps, digits);
+    let cheksum1 = get_message_checksum(ps, digits);
     let mut result: Vec<Vec<u8>> = Vec::with_capacity(ps.n as usize);
     for i in 0..ps.n0 {
         let sig = digit_signature(secret_key, i, digits[i as usize]);
@@ -122,7 +122,7 @@ pub fn verify_signature(
     message: Vec<u8>,
     ps: &Parameters,
 ) -> Result<bool, String> {
-    let checksum = add_message_checksum(ps, &message);
+    let checksum = get_message_checksum(ps, &message);
     for i in 0..message.len() {
         let digit = message[i];
         if digit == 255 {
@@ -180,59 +180,16 @@ pub fn verify_winternitz_and_groth16(
         panic!("Verification failed");
     }
 
-    let a: [u8; 32] = message[0..32].try_into().unwrap();
-    let b: [u8; 64] = message[32..96].try_into().unwrap();
-    let c: [u8; 32] = message[96..128].try_into().unwrap();
+    let compressed_seal: [u8; 128] = message[0..128].try_into().unwrap();
     let total_work: [u8; 16] = message[128..144].try_into().unwrap();
 
-    let a_decompressed = g1_decompress(&a).unwrap();
-    let b_decompressed = g2_decompress(&b).unwrap();
-    let c_decompressed = g1_decompress(&c).unwrap();
+    let seal = groth16::Groth16Seal::from_compressed(&compressed_seal).unwrap();
 
-    let a0_serialized = a_decompressed[0].to_bytes_be();
-    let a1_serialized = a_decompressed[1].to_bytes_be();
-    let b00_serialized = b_decompressed[0].to_bytes_be();
-    let b01_serialized = b_decompressed[1].to_bytes_be();
-    let b10_serialized = b_decompressed[2].to_bytes_be();
-    let b11_serialized = b_decompressed[3].to_bytes_be();
-    let c0_serialized = c_decompressed[0].to_bytes_be();
-    let c1_serialized = c_decompressed[1].to_bytes_be();
-
-    let ark_bn254_a = ark_bn254::G1Affine::new(
-        ark_bn254::Fq::from_be_bytes_mod_order(&a0_serialized),
-        ark_bn254::Fq::from_be_bytes_mod_order(&a1_serialized),
-    );
-
-    let ark_bn254_c = ark_bn254::G1Affine::new(
-        ark_bn254::Fq::from_be_bytes_mod_order(&c0_serialized),
-        ark_bn254::Fq::from_be_bytes_mod_order(&c1_serialized),
-    );
-
-    let ark_bn254_b = ark_bn254::G2Affine::new(
-        ark_bn254::Fq2::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(&b00_serialized),
-            ark_bn254::Fq::from_be_bytes_mod_order(&b01_serialized),
-        ),
-        ark_bn254::Fq2::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(&b10_serialized),
-            ark_bn254::Fq::from_be_bytes_mod_order(&b11_serialized),
-        ),
-    );
-
-    let ark_proof = Proof::<Bn254> {
-        a: ark_bn254_a.into(),
-        b: ark_bn254_b.into(),
-        c: ark_bn254_c.into(),
-    };
-
-    println!("Proof: {:?}", ark_proof);
-
-    println!("Proof created");
+    let ark_proof = create_ark_proof(seal);
 
     let vk: ark_groth16::VerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> = create_verifying_key();
     let prepared_vk: ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
         prepare_verifying_key(&vk);
-    println!("Verifying key created");
 
     let output_tag: [u8; 32] = hex::decode(OUTPUT_TAG).unwrap().try_into().unwrap();
     let total_work_digest: [u8; 32] = Sha256::digest(&total_work).try_into().unwrap();
@@ -245,10 +202,10 @@ pub fn verify_winternitz_and_groth16(
         &total_work_digest[..],
         &assumptions_bytes[..],
         &len_output[..],
-    ].concat();
+    ]
+    .concat();
 
     output_pre_digest.copy_from_slice(&concantenated_output);
-
 
     let output_digest = Sha256::digest(output_pre_digest);
 
@@ -293,8 +250,6 @@ pub fn verify_winternitz_and_groth16(
         groth16_control_root.as_bytes().try_into().unwrap();
     groth16_control_root_bytes.reverse();
 
-    // convert to be bytes
-
     let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
     let a1_str = groth16_control_root_bytes[0..32].to_string();
     let a0_str = groth16_control_root_bytes[32..64].to_string();
@@ -325,56 +280,31 @@ pub fn verify_winternitz_and_groth16(
     );
 }
 
+fn create_ark_proof(g16_seal: Groth16Seal) -> Proof<Bn254> {
+    let ark_bn254_a = ark_bn254::G1Affine::new(
+        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().x()),
+        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().y()),
+    );
 
-pub fn g2_decompress(compressed: &[u8]) -> Option<[BigUint; 4]> {
-    if compressed.len() != 64 {
-        return None;
+    let ark_bn254_c = ark_bn254::G1Affine::new(
+        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().x()),
+        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().y()),
+    );
+
+    let ark_bn254_b = ark_bn254::G2Affine::new(
+        ark_bn254::Fq2::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x0()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x1()),
+        ),
+        ark_bn254::Fq2::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y0()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y1()),
+        ),
+    );
+
+    Proof::<Bn254> {
+        a: ark_bn254_a.into(),
+        b: ark_bn254_b.into(),
+        c: ark_bn254_c.into(),
     }
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-    let compressed_x0 = bytes_to_bigint(&compressed[0..32].try_into().unwrap());
-    let compressed_x1 = bytes_to_bigint(&compressed[32..64].try_into().unwrap());
-
-    let negate_point = (&compressed_x0 & BigUint::one()) == BigUint::one();
-    let hint = (&compressed_x0 & BigUint::from(2u8)) == BigUint::from(2u8);
-    let x0: BigUint = &compressed_x0 >> 2;
-    let x1 = compressed_x1;
-
-    let n3ab = (&x0 * &x1 * (&modulus - BigUint::from(3u8))) % &modulus;
-    let a_3 = (&x0 * &x0 * &x0) % &modulus;
-    let b_3 = (&x1 * &x1 * &x1) % &modulus;
-
-    let const_27_82 = BigUint::parse_bytes(CONST_27_82, 10).unwrap();
-    let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
-    let y0 = (&const_27_82 + &a_3 + ((&n3ab * &x1) % &modulus)) % &modulus;
-    let y1 = negate_bigint(&((&const_3_82 + &b_3 + (&n3ab * &x0)) % &modulus), &modulus);
-    let (y0, y1) = sqrt_f2(y0, y1, hint, &modulus);
-
-    if negate_point {
-        let y1 = negate_bigint(&y1, &modulus);
-        let y0 = negate_bigint(&y0, &modulus);
-        return Some([x0, x1, y0, y1]);
-    }
-
-    Some([x0, x1, y0, y1])
-}
-
-
-pub fn g1_decompress(compressed: &[u8]) -> Option<[BigUint; 2]> {
-    if compressed.len() != 32 {
-        return None;
-    }
-
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-
-    let compressed_x = bytes_to_bigint(&compressed.try_into().unwrap());
-    let negate_point = (&compressed_x & BigUint::one()) == BigUint::one();
-    let x = &compressed_x >> 1;
-
-    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus), &modulus);
-    let y = if negate_point {
-        negate_bigint(&y, &modulus)
-    } else {
-        y
-    };
-    Some([x, y])
 }

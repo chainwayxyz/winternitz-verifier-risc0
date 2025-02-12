@@ -4,15 +4,14 @@ use header_chain::header_chain::{
 };
 use headerchain::HEADERCHAIN_ELF;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use risc0_groth16::{self, Seal};
 use risc0_zkvm::{
     compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt,
 };
 use std::convert::TryInto;
 use winternitz::WINTERNITZ_ELF;
-use winternitz_core::{generate_public_key, sign_digits, Parameters};
-use work_only::{WORK_ONLY_ELF, WORK_ONLY_ID};
 use winternitz_core::groth16::Groth16Seal;
+use winternitz_core::{generate_public_key, sign_digits, Parameters};
+use work_only::WORK_ONLY_ELF;
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 
 fn main() {
@@ -59,8 +58,6 @@ fn main() {
         .write(&signature)
         .unwrap()
         .write(&compressed_proof_and_total_work)
-        .unwrap()
-        .write(&WORK_ONLY_ID)
         .unwrap()
         .build()
         .unwrap();

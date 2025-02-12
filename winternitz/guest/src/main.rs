@@ -1,4 +1,3 @@
-use bitcoin::Witness;
 use risc0_zkvm::guest::env;
 use winternitz_core::{utils::hash160, verify_winternitz_and_groth16, Parameters, PublicKey};
 
@@ -7,7 +6,6 @@ fn main() {
     let params: Parameters = env::read();
     let signature: Vec<Vec<u8>> = env::read();
     let message: Vec<u8> = env::read();
-    let image_id: [u32; 8]  = env::read();
     
 
     verify_winternitz_and_groth16(&pub_key, &signature, &message, &params);
