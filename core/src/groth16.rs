@@ -1,8 +1,15 @@
-use crate::{constants::{CONST_27_82, CONST_3_82, MODULUS}, field::{bigint_to_bytes, negate_bigint, sqrt_f2, sqrt_fp, bytes_to_bigint}};
-use num_bigint::BigUint;
-use num_traits::One;
-
-
+use crate::constants::{create_verifying_key, BN254_CONTROL_ID};
+use crate::groth16_utils::{
+    create_claim_digest, create_output_digest, g1_compress, g1_decompress, g2_compress,
+    g2_decompress,
+};
+use crate::utils::to_decimal;
+use ark_bn254::{Bn254, Fr};
+use ark_ff::PrimeField;
+use ark_groth16::{prepare_verifying_key, Proof};
+use hex::ToHex;
+use risc0_zkvm::Groth16ReceiptVerifierParameters;
+use std::str::FromStr;
 #[derive(Copy, Clone)]
 pub struct G1 {
     x: [u8; 32],
@@ -84,7 +91,7 @@ pub struct Groth16Seal {
 
 impl Groth16Seal {
     pub fn new(a: G1, b: G2, c: G1) -> Groth16Seal {
-        Groth16Seal { a: a, b: b, c: c }
+        Groth16Seal { a, b, c }
     }
 
     pub fn from_seal(seal: &[u8; 256]) -> Groth16Seal {
@@ -138,120 +145,97 @@ impl Groth16Seal {
     }
 }
 
-pub fn g1_compress(point: [&[u8; 32]; 2]) -> Vec<u8> {
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-
-    let x = BigUint::from_bytes_be(point[0]);
-    let y = BigUint::from_bytes_be(point[1]);
-
-    let y_neg = negate_bigint(&y, &modulus);
-    let sign: u8 = if y < y_neg { 0x1 } else { 0x0 };
-
-    let compressed = (&x << 1) | BigUint::from(sign);
-
-    bigint_to_bytes(&compressed).to_vec()
+pub struct Groth16 {
+    groth16_seal: Groth16Seal,
+    total_work: [u8; 16],
 }
 
-pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Vec<u8> {
-    let x_real = BigUint::from_bytes_be(point[0][1]);
-    let x_imaginary = BigUint::from_bytes_be(point[0][0]);
-    let y_real = BigUint::from_bytes_be(point[1][1]);
-    let y_img = BigUint::from_bytes_be(point[1][0]);
+impl Groth16 {
+    pub fn new(groth16_seal: Groth16Seal, total_work: [u8; 16]) -> Groth16 {
+        Groth16 {
+            groth16_seal,
+            total_work,
+        }
+    }
 
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
+    pub fn verify(&self) -> bool {
+        let ark_proof = self.groth16_seal.into();
+        let vk: ark_groth16::VerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
+            create_verifying_key();
+        let prepared_vk: ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
+            prepare_verifying_key(&vk);
 
-    let y_neg = negate_bigint(&y_real, &modulus);
+        let output_digest = create_output_digest(&self.total_work);
 
-    let sign: u8 = if y_real < y_neg { 0x1 } else { 0x0 };
+        let claim_digest: [u8; 32] = create_claim_digest(&output_digest);
 
-    let const_27_82 = BigUint::parse_bytes(CONST_27_82, 10).unwrap();
-    let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
+        let claim_digest_hex: String = claim_digest.encode_hex();
+        let c0_str = &claim_digest_hex[0..32];
+        let c1_str = &claim_digest_hex[32..64];
 
-    let n3ab = (&x_real * &x_imaginary * (&modulus - BigUint::from(3u8))) % &modulus;
-    let a_3 = (&x_real * &x_real * &x_real) % &modulus;
-    let b_3 = (&x_imaginary * &x_imaginary * &x_imaginary) % &modulus;
+        let c0_dec = to_decimal(c0_str).unwrap();
+        let c1_dec = to_decimal(c1_str).unwrap();
 
-    let m = (&const_27_82 + &a_3 + ((&n3ab * &x_imaginary) % &modulus)) % &modulus;
-    let n = negate_bigint(
-        &((&const_3_82 + &b_3 + (&n3ab * &x_real)) % &modulus),
-        &modulus,
-    );
+        let groth16_receipt_verifier_params = Groth16ReceiptVerifierParameters::default();
 
-    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus), &modulus);
+        let groth16_control_root = groth16_receipt_verifier_params.control_root;
+        let mut groth16_control_root_bytes: [u8; 32] =
+            groth16_control_root.as_bytes().try_into().unwrap();
+        groth16_control_root_bytes.reverse();
 
-    let d_check = (y_real.pow(2) + y_img.pow(2)) % modulus;
+        let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
+        let a1_str = &groth16_control_root_bytes[0..32];
+        let a0_str = &groth16_control_root_bytes[32..64];
 
-    let hint = if d == d_check { 0x0 } else { 0x2 };
+        let a1_dec = to_decimal(a1_str).unwrap();
+        let a0_dec = to_decimal(a0_str).unwrap();
 
-    let flag = sign | hint;
+        let mut bn254_control_id_bytes: [u8; 32] = BN254_CONTROL_ID;
+        bn254_control_id_bytes.reverse();
 
-    let compressed_x0 = (&x_real << 2) | BigUint::from(flag);
-    let compressed_x1 = x_imaginary;
+        let bn254_control_id_hex: String = bn254_control_id_bytes.encode_hex();
 
-    let mut compressed = Vec::new();
-    compressed.extend_from_slice(&bigint_to_bytes(&compressed_x0));
-    compressed.extend_from_slice(&bigint_to_bytes(&compressed_x1));
-    compressed
+        let bn254_control_id_dec = to_decimal(&bn254_control_id_hex).unwrap();
+
+        let values = [&a0_dec, &a1_dec, &c1_dec, &c0_dec, &bn254_control_id_dec];
+
+        let public_inputs = values
+            .iter()
+            .map(|&v| Fr::from_str(v).unwrap())
+            .collect::<Vec<_>>();
+
+        ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
+            .unwrap()
+    }
 }
 
-pub fn g2_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 4]> {
-    if compressed.len() != 64 {
-        return None;
+impl From<Groth16Seal> for Proof<Bn254> {
+    fn from(g16_seal: Groth16Seal) -> Self {
+        let ark_bn254_a = ark_bn254::G1Affine::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().x()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().y()),
+        );
+
+        let ark_bn254_c = ark_bn254::G1Affine::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().x()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().y()),
+        );
+
+        let ark_bn254_b = ark_bn254::G2Affine::new(
+            ark_bn254::Fq2::new(
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x0()),
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x1()),
+            ),
+            ark_bn254::Fq2::new(
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y0()),
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y1()),
+            ),
+        );
+
+        Proof::<Bn254> {
+            a: ark_bn254_a,
+            b: ark_bn254_b,
+            c: ark_bn254_c,
+        }
     }
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-    let compressed_x0 = bytes_to_bigint(&compressed[0..32].try_into().unwrap());
-    let compressed_x1 = bytes_to_bigint(&compressed[32..64].try_into().unwrap());
-
-    let negate_point = (&compressed_x0 & BigUint::one()) == BigUint::one();
-    let hint = (&compressed_x0 & BigUint::from(2u8)) == BigUint::from(2u8);
-    let x0: BigUint = &compressed_x0 >> 2;
-    let x1 = compressed_x1;
-
-    let n3ab = (&x0 * &x1 * (&modulus - BigUint::from(3u8))) % &modulus;
-    let a_3 = (&x0 * &x0 * &x0) % &modulus;
-    let b_3 = (&x1 * &x1 * &x1) % &modulus;
-
-    let const_27_82 = BigUint::parse_bytes(CONST_27_82, 10).unwrap();
-    let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
-    let y0 = (&const_27_82 + &a_3 + ((&n3ab * &x1) % &modulus)) % &modulus;
-    let y1 = negate_bigint(&((&const_3_82 + &b_3 + (&n3ab * &x0)) % &modulus), &modulus);
-    let (mut y0, mut y1) = sqrt_f2(y0, y1, hint, &modulus);
-
-    if negate_point {
-        y1 = negate_bigint(&y1, &modulus);
-        y0 = negate_bigint(&y0, &modulus);
-    }
-
-    let to_bytes = |v: &BigUint| -> [u8; 32] {
-        v.to_bytes_be()
-            .try_into()
-            .expect("BigInt should fit in 32 bytes")
-    };
-
-    Some([to_bytes(&x0), to_bytes(&x1), to_bytes(&y0), to_bytes(&y1)])
-}
-
-pub fn g1_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 2]> {
-    if compressed.len() != 32 {
-        return None;
-    }
-
-    let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
-
-    let compressed_x = bytes_to_bigint(&compressed.try_into().unwrap());
-    let negate_point = (&compressed_x & BigUint::one()) == BigUint::one();
-    let x = &compressed_x >> 1;
-
-    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus), &modulus);
-    let y = if negate_point {
-        negate_bigint(&y, &modulus)
-    } else {
-        y
-    };
-    let to_bytes = |v: &BigUint| -> [u8; 32] {
-        v.to_bytes_be()
-            .try_into()
-            .expect("BigInt should fit in 32 bytes")
-    };
-    Some([to_bytes(&x), to_bytes(&y)])
 }
