@@ -1,7 +1,6 @@
 mod constants;
 pub mod groth16;
 pub mod utils;
-use ark_bn254;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
 use ark_groth16::{prepare_verifying_key, Proof};
@@ -20,6 +19,7 @@ use std::str::FromStr;
 use utils::*;
 pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
+
 #[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
 pub struct Parameters {
     n0: u32,
@@ -29,6 +29,7 @@ pub struct Parameters {
     n: u32,
 }
 
+#[derive(Debug, Clone)]
 pub struct DigitSignature {
     pub hash_bytes: Vec<u8>,
 }
@@ -36,7 +37,7 @@ pub struct DigitSignature {
 impl Parameters {
     pub fn new(n0: u32, log_d: u32) -> Self {
         assert!(
-            4 <= log_d && log_d <= 8,
+            (4..=8).contains(&log_d),
             "You can only choose block lengths in the range [4, 8]"
         );
         let d: u32 = (1 << log_d) - 1;
@@ -87,20 +88,20 @@ pub fn generate_public_key(ps: &Parameters, secret_key: &SecretKey) -> PublicKey
     public_key
 }
 
-fn checksum(ps: &Parameters, digits: Vec<u8>) -> u32 {
+fn checksum(ps: &Parameters, digits: &[u8]) -> u32 {
     let mut sum: u32 = 0;
-    for digit in digits {
+    for &digit in digits {
         sum += digit as u32;
     }
     ps.d * ps.n0 - sum
 }
 
-fn get_message_checksum(ps: &Parameters, digits: &Vec<u8>) -> Vec<u8> {
-    let checksum_digits = to_digits(checksum(ps, digits.clone()), ps.d + 1, ps.n1 as i32);
+fn get_message_checksum(ps: &Parameters, digits: &[u8]) -> Vec<u8> {
+    let checksum_digits = to_digits(checksum(ps, digits), ps.d + 1, ps.n1 as i32);
     checksum_digits
 }
 
-pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &Vec<u8>) -> Vec<Vec<u8>> {
+pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &[u8]) -> Vec<Vec<u8>> {
     let cheksum1 = get_message_checksum(ps, digits);
     let mut result: Vec<Vec<u8>> = Vec::with_capacity(ps.n as usize);
     for i in 0..ps.n0 {
@@ -118,46 +119,42 @@ pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &Vec<u8>) ->
 // TODO: Change the signature type to u8 array
 pub fn verify_signature(
     public_key: &PublicKey,
-    signature: &Vec<Vec<u8>>,
-    message: Vec<u8>,
+    signature: &[Vec<u8>],
+    message: &[u8],
     ps: &Parameters,
 ) -> Result<bool, String> {
     let checksum = get_message_checksum(ps, &message);
-    for i in 0..message.len() {
-        let digit = message[i];
-        if digit == 255 {
-            if signature[i] != public_key[i] {
-                return Ok(false);
-            };
+    assert_eq!(
+        public_key.len(),
+        ps.n as usize,
+        "Public key length mismatch"
+    );
+    assert_eq!(signature.len(), ps.n as usize, "Signature length mismatch");
+    assert_eq!(message.len(), ps.n0 as usize, "Message length mismatch");
 
-            continue;
-        }
-        let hash_bytes = (0..(ps.d - digit as u32 - 1))
-            .into_iter()
-            .fold(hash160(&signature[i]), |hash, _| hash160(&hash));
+    for (i, &digit) in message.iter().enumerate() {
+        let signature_byte_arr: [u8; 20] = signature[i].as_slice().try_into().unwrap();
+
+        let hash_bytes =
+            (0..(ps.d - digit as u32)).fold(signature_byte_arr, |hash, _| hash160(&hash));
 
         if hash_bytes != public_key[i] {
-            println!("{:?}, {:?}", hash_bytes, public_key[i as usize]);
+            println!("{:?}, {:?}", hash_bytes, public_key[i]);
             return Ok(false);
         }
     }
 
-    for i in 0..ps.n1 {
-        let digit = checksum[i as usize];
-        let ind = message.len() + i as usize;
-        if digit == 255 {
-            if signature[ind] != public_key[ind] {
-                return Ok(false);
-            };
-            continue;
-        }
+    for ((&checksum, sig), &pubkey) in checksum
+        .iter()
+        .zip(&signature[message.len()..])
+        .zip(&public_key[message.len()..])
+    {
+        let signature_byte_arr: [u8; 20] = sig.as_slice().try_into().unwrap();
+        let hash_bytes =
+            (0..(ps.d - checksum as u32)).fold(signature_byte_arr, |hash, _| hash160(&hash));
 
-        let hash_bytes = (0..(ps.d - digit as u32 - 1))
-            .into_iter()
-            .fold(hash160(&signature[ind]), |hash, _| hash160(&hash));
-
-        if hash_bytes != public_key[ind] {
-            println!("{:?}, {:?}", hash_bytes, public_key[ind]);
+        if hash_bytes != pubkey {
+            println!("{:?}, {:?}", hash_bytes, pubkey);
             return Ok(false);
         }
     }
@@ -170,13 +167,20 @@ pub fn to_decimal(s: &str) -> Option<String> {
     int.map(|n| n.to_str_radix(10))
 }
 
+/// Verifies a total work proof using
+///
+/// # Parameters
+/// - ...
 pub fn verify_winternitz_and_groth16(
     pub_key: &Vec<[u8; 20]>,
-    signature: &Vec<Vec<u8>>,
-    message: &Vec<u8>,
+    signature: &[Vec<u8>],
+    message: &[u8],
     params: &Parameters,
 ) {
-    if !verify_signature(&pub_key, &signature, message.clone(), &params).unwrap() {
+    assert_eq!(message.len(), 144, "Message length mismatch");
+
+    // winternitz verification
+    if !verify_signature(pub_key, signature, message, params).unwrap() {
         panic!("Verification failed");
     }
 
@@ -185,27 +189,26 @@ pub fn verify_winternitz_and_groth16(
 
     let seal = groth16::Groth16Seal::from_compressed(&compressed_seal).unwrap();
 
-    let ark_proof = create_ark_proof(seal);
+    let ark_proof = seal.into();
 
     let vk: ark_groth16::VerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> = create_verifying_key();
     let prepared_vk: ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
         prepare_verifying_key(&vk);
 
-    let output_tag: [u8; 32] = hex::decode(OUTPUT_TAG).unwrap().try_into().unwrap();
-    let total_work_digest: [u8; 32] = Sha256::digest(&total_work).try_into().unwrap();
+    let total_work_digest: [u8; 32] = Sha256::digest(total_work).into();
     let assumptions_bytes: [u8; 32] = hex::decode(ASSUMPTIONS_HEX).unwrap().try_into().unwrap();
     let len_output: [u8; 2] = hex::decode("0200").unwrap().try_into().unwrap();
     let mut output_pre_digest: [u8; 98] = [0; 98];
 
-    let concantenated_output = [
-        &output_tag[..],
+    let concatenated_output = [
+        &OUTPUT_TAG,
         &total_work_digest[..],
         &assumptions_bytes[..],
         &len_output[..],
     ]
     .concat();
 
-    output_pre_digest.copy_from_slice(&concantenated_output);
+    output_pre_digest.copy_from_slice(&concatenated_output);
 
     let output_digest = Sha256::digest(output_pre_digest);
 
@@ -233,15 +236,15 @@ pub fn verify_winternitz_and_groth16(
 
     claim_pre_digest.copy_from_slice(&concatenated);
 
-    let mut claim_digest = Sha256::digest(&claim_pre_digest);
+    let mut claim_digest = Sha256::digest(claim_pre_digest);
     claim_digest.reverse();
 
     let claim_digest_hex: String = claim_digest.encode_hex();
-    let c0_str = claim_digest_hex[0..32].to_string();
-    let c1_str = claim_digest_hex[32..64].to_string();
+    let c0_str = &claim_digest_hex[0..32];
+    let c1_str = &claim_digest_hex[32..64];
 
-    let c0_dec = to_decimal(&c0_str).unwrap();
-    let c1_dec = to_decimal(&c1_str).unwrap();
+    let c0_dec = to_decimal(c0_str).unwrap();
+    let c1_dec = to_decimal(c1_str).unwrap();
 
     let groth16_receipt_verifier_params = Groth16ReceiptVerifierParameters::default();
 
@@ -251,11 +254,11 @@ pub fn verify_winternitz_and_groth16(
     groth16_control_root_bytes.reverse();
 
     let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
-    let a1_str = groth16_control_root_bytes[0..32].to_string();
-    let a0_str = groth16_control_root_bytes[32..64].to_string();
+    let a1_str = &groth16_control_root_bytes[0..32];
+    let a0_str = &groth16_control_root_bytes[32..64];
 
-    let a1_dec = to_decimal(&a1_str).unwrap();
-    let a0_dec = to_decimal(&a0_str).unwrap();
+    let a1_dec = to_decimal(a1_str).unwrap();
+    let a0_dec = to_decimal(a0_str).unwrap();
 
     let mut bn254_control_id_bytes: [u8; 32] = hex::decode(BN254_CONTROL_ID_HEX)
         .unwrap()
@@ -263,15 +266,16 @@ pub fn verify_winternitz_and_groth16(
         .unwrap();
     bn254_control_id_bytes.reverse();
 
-    let bn254_control_id_bytes: String = bn254_control_id_bytes.encode_hex();
+    let bn254_control_id_hex: String = bn254_control_id_bytes.encode_hex();
 
-    let bn254_control_id_dec = to_decimal(&bn254_control_id_bytes).unwrap();
-
-    let mut public_inputs = Vec::new();
+    let bn254_control_id_dec = to_decimal(&bn254_control_id_hex).unwrap();
 
     let values = [&a0_dec, &a1_dec, &c1_dec, &c0_dec, &bn254_control_id_dec];
 
-    public_inputs.extend(values.iter().map(|&v| Fr::from_str(v).unwrap()));
+    let public_inputs = values
+        .iter()
+        .map(|&v| Fr::from_str(v).unwrap())
+        .collect::<Vec<_>>();
 
     println!(
         "{}",
@@ -280,31 +284,33 @@ pub fn verify_winternitz_and_groth16(
     );
 }
 
-fn create_ark_proof(g16_seal: Groth16Seal) -> Proof<Bn254> {
-    let ark_bn254_a = ark_bn254::G1Affine::new(
-        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().x()),
-        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().y()),
-    );
+impl From<Groth16Seal> for Proof<Bn254> {
+    fn from(g16_seal: Groth16Seal) -> Self {
+        let ark_bn254_a = ark_bn254::G1Affine::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().x()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().y()),
+        );
 
-    let ark_bn254_c = ark_bn254::G1Affine::new(
-        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().x()),
-        ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().y()),
-    );
+        let ark_bn254_c = ark_bn254::G1Affine::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().x()),
+            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().y()),
+        );
 
-    let ark_bn254_b = ark_bn254::G2Affine::new(
-        ark_bn254::Fq2::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x0()),
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x1()),
-        ),
-        ark_bn254::Fq2::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y0()),
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y1()),
-        ),
-    );
+        let ark_bn254_b = ark_bn254::G2Affine::new(
+            ark_bn254::Fq2::new(
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x0()),
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x1()),
+            ),
+            ark_bn254::Fq2::new(
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y0()),
+                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y1()),
+            ),
+        );
 
-    Proof::<Bn254> {
-        a: ark_bn254_a.into(),
-        b: ark_bn254_b.into(),
-        c: ark_bn254_c.into(),
+        Proof::<Bn254> {
+            a: ark_bn254_a,
+            b: ark_bn254_b,
+            c: ark_bn254_c,
+        }
     }
 }

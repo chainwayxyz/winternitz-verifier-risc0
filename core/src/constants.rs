@@ -177,4 +177,5 @@ pub static ASSUMPTIONS_HEX: &str =
 pub static BN254_CONTROL_ID_HEX: &str =
     "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404";
 pub static CLAIM_TAG: &str = "cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af"; // hash of "risc0.ReceiptClaim"
-pub static OUTPUT_TAG: &str = "77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4"; // hash of "risc0.Output"
+pub static OUTPUT_TAG: [u8; 32] =
+    hex_literal::hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4"); // hash of "risc0.Output"
