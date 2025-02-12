@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 pub type HashOut = [u8; 20];
 pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
-use bitcoin::hashes::{self, Hash};
 use crate::utils::hash160;
+use bitcoin::hashes::{self, Hash};
 
 pub fn verify_signature(
     public_key: &PublicKey,
@@ -49,7 +49,6 @@ pub fn verify_signature(
 
     Ok(true)
 }
-
 
 pub fn get_message_checksum(ps: &Parameters, digits: &[u8]) -> Vec<u8> {
     to_digits(checksum(ps, digits), ps.d + 1, ps.n1 as i32)
