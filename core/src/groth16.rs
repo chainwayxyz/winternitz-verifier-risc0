@@ -89,32 +89,18 @@ impl Groth16Seal {
 
     pub fn from_seal(seal: &[u8; 256]) -> Groth16Seal {
         let a = G1::new_from_bytes(
-            seal[0..32].try_into().expect("slice with incorrect length"),
-            seal[32..64]
-                .try_into()
-                .expect("slice with incorrect length"),
+            seal[0..32].try_into().expect("slice has correct length"),
+            seal[32..64].try_into().expect("slice has correct length"),
         );
         let b = G2::new_from_bytes(
-            seal[64..96]
-                .try_into()
-                .expect("slice with incorrect length"),
-            seal[96..128]
-                .try_into()
-                .expect("slice with incorrect length"),
-            seal[128..160]
-                .try_into()
-                .expect("slice with incorrect length"),
-            seal[160..192]
-                .try_into()
-                .expect("slice with incorrect length"),
+            seal[64..96].try_into().expect("slice has correct length"),
+            seal[96..128].try_into().expect("slice has correct length"),
+            seal[128..160].try_into().expect("slice has correct length"),
+            seal[160..192].try_into().expect("slice has correct length"),
         );
         let c = G1::new_from_bytes(
-            seal[192..224]
-                .try_into()
-                .expect("slice with incorrect length"),
-            seal[224..256]
-                .try_into()
-                .expect("slice with incorrect length"),
+            seal[192..224].try_into().expect("slice has correct length"),
+            seal[224..256].try_into().expect("slice has correct length"),
         );
         Groth16Seal::new(a, b, c)
     }
@@ -126,7 +112,7 @@ impl Groth16Seal {
         Some(Groth16Seal::new(a, b, c))
     }
 
-    pub fn get_compressed(&self) -> [u8; 128] {
+    pub fn to_compressed(&self) -> [u8; 128] {
         let a = g1_compress(vec![self.a.x.to_vec(), self.a.y.to_vec()]);
         let b = g2_compress(vec![
             vec![self.b.x0.to_vec(), self.b.x1.to_vec()],
