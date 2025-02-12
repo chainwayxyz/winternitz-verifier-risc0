@@ -64,3 +64,27 @@ pub(crate) fn sqrt_f2(
 
     (x0, x1)
 }
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_mod_inverse() {
+        let value = BigUint::from(5u8);
+        let modulus = BigUint::from(7u8);
+        let result = mod_inverse(&value, &modulus);
+        assert_eq!(result, BigUint::from(3u8));
+    }
+    
+    #[test]
+    fn test_sqrt_fp() {
+        let value = BigUint::from(5u8);
+        let modulus = BigUint::from(7u8);
+        let result = sqrt_fp(&value, &modulus);
+        assert_eq!((result.clone() * result.clone()) % modulus, value);
+    }
+
+}
