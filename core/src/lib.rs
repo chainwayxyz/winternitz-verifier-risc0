@@ -1,171 +1,22 @@
 mod constants;
 pub mod groth16;
 pub mod utils;
+pub mod winternitz;
+pub mod field;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
 use ark_groth16::{prepare_verifying_key, Proof};
 use ark_std::vec::Vec;
-use bitcoin::hashes::{self, Hash};
 use constants::*;
 use groth16::Groth16Seal;
 use hex::ToHex;
 use num_bigint::BigUint;
 use num_traits::Num;
 use risc0_zkvm::Groth16ReceiptVerifierParameters;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 use std::str::FromStr;
-use utils::*;
-pub type PublicKey = Vec<HashOut>;
-pub type SecretKey = Vec<u8>;
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone)]
-pub struct Parameters {
-    n0: u32,
-    log_d: u32,
-    n1: u32,
-    d: u32,
-    n: u32,
-}
-
-#[derive(Debug, Clone)]
-pub struct DigitSignature {
-    pub hash_bytes: Vec<u8>,
-}
-
-impl Parameters {
-    pub fn new(n0: u32, log_d: u32) -> Self {
-        assert!(
-            (4..=8).contains(&log_d),
-            "You can only choose block lengths in the range [4, 8]"
-        );
-        let d: u32 = (1 << log_d) - 1;
-        let n1: u32 = log_base_ceil(d * n0, d + 1) + 1;
-        let n: u32 = n0 + n1;
-        Parameters {
-            n0,
-            log_d,
-            n1,
-            d,
-            n,
-        }
-    }
-}
-
-fn public_key_for_digit(ps: &Parameters, secret_key: &SecretKey, digit_index: u32) -> HashOut {
-    let mut secret_i = secret_key.clone();
-    secret_i.push(digit_index as u8);
-    let mut hash = hashes::hash160::Hash::hash(&secret_i);
-
-    for _ in 0..ps.d {
-        hash = hashes::hash160::Hash::hash(&hash[..]);
-    }
-
-    *hash.as_byte_array()
-}
-
-pub fn digit_signature(
-    secret_key: &SecretKey,
-    digit_index: u32,
-    message_digit: u8,
-) -> DigitSignature {
-    let mut secret_i = secret_key.clone();
-    secret_i.push(digit_index as u8);
-    let mut hash = hashes::hash160::Hash::hash(&secret_i);
-    for _ in 0..message_digit {
-        hash = hashes::hash160::Hash::hash(&hash[..]);
-    }
-    let hash_bytes = hash.as_byte_array().to_vec();
-    DigitSignature { hash_bytes }
-}
-
-pub fn generate_public_key(ps: &Parameters, secret_key: &SecretKey) -> PublicKey {
-    let mut public_key = PublicKey::with_capacity(ps.n as usize);
-    for i in 0..ps.n {
-        public_key.push(public_key_for_digit(ps, secret_key, i));
-    }
-    public_key
-}
-
-fn checksum(ps: &Parameters, digits: &[u8]) -> u32 {
-    let mut sum: u32 = 0;
-    for &digit in digits {
-        sum += digit as u32;
-    }
-    ps.d * ps.n0 - sum
-}
-
-fn get_message_checksum(ps: &Parameters, digits: &[u8]) -> Vec<u8> {
-    let checksum_digits = to_digits(checksum(ps, digits), ps.d + 1, ps.n1 as i32);
-    checksum_digits
-}
-
-pub fn sign_digits(ps: &Parameters, secret_key: &SecretKey, digits: &[u8]) -> Vec<Vec<u8>> {
-    let cheksum1 = get_message_checksum(ps, digits);
-    let mut result: Vec<Vec<u8>> = Vec::with_capacity(ps.n as usize);
-    for i in 0..ps.n0 {
-        let sig = digit_signature(secret_key, i, digits[i as usize]);
-        result.push(sig.hash_bytes);
-    }
-    for i in 0..ps.n1 {
-        let sig = digit_signature(secret_key, i + digits.len() as u32, cheksum1[i as usize]);
-        result.push(sig.hash_bytes);
-    }
-    result
-}
-
-// Takes signature as Witness for ease of use since sign method produces result in Witness.
-// TODO: Change the signature type to u8 array
-pub fn verify_signature(
-    public_key: &PublicKey,
-    signature: &[Vec<u8>],
-    message: &[u8],
-    ps: &Parameters,
-) -> Result<bool, String> {
-    let checksum = get_message_checksum(ps, &message);
-    assert_eq!(
-        public_key.len(),
-        ps.n as usize,
-        "Public key length mismatch"
-    );
-    assert_eq!(signature.len(), ps.n as usize, "Signature length mismatch");
-    assert_eq!(message.len(), ps.n0 as usize, "Message length mismatch");
-
-    for (i, &digit) in message.iter().enumerate() {
-        let signature_byte_arr: [u8; 20] = signature[i].as_slice().try_into().unwrap();
-
-        let hash_bytes =
-            (0..(ps.d - digit as u32)).fold(signature_byte_arr, |hash, _| hash160(&hash));
-
-        if hash_bytes != public_key[i] {
-            println!("{:?}, {:?}", hash_bytes, public_key[i]);
-            return Ok(false);
-        }
-    }
-
-    for ((&checksum, sig), &pubkey) in checksum
-        .iter()
-        .zip(&signature[message.len()..])
-        .zip(&public_key[message.len()..])
-    {
-        let signature_byte_arr: [u8; 20] = sig.as_slice().try_into().unwrap();
-        let hash_bytes =
-            (0..(ps.d - checksum as u32)).fold(signature_byte_arr, |hash, _| hash160(&hash));
-
-        if hash_bytes != pubkey {
-            println!("{:?}, {:?}", hash_bytes, pubkey);
-            return Ok(false);
-        }
-    }
-
-    Ok(true)
-}
-
-pub fn to_decimal(s: &str) -> Option<String> {
-    let int = BigUint::from_str_radix(s, 16).ok();
-    int.map(|n| n.to_str_radix(10))
-}
+use winternitz::{Parameters, verify_signature};
 
 /// Verifies a total work proof using
 ///
@@ -196,14 +47,13 @@ pub fn verify_winternitz_and_groth16(
         prepare_verifying_key(&vk);
 
     let total_work_digest: [u8; 32] = Sha256::digest(total_work).into();
-    let assumptions_bytes: [u8; 32] = hex::decode(ASSUMPTIONS_HEX).unwrap().try_into().unwrap();
     let len_output: [u8; 2] = hex::decode("0200").unwrap().try_into().unwrap();
     let mut output_pre_digest: [u8; 98] = [0; 98];
 
     let concatenated_output = [
         &OUTPUT_TAG,
         &total_work_digest[..],
-        &assumptions_bytes[..],
+        &ASSUMPTIONS[..],
         &len_output[..],
     ]
     .concat();
@@ -212,11 +62,6 @@ pub fn verify_winternitz_and_groth16(
 
     let output_digest = Sha256::digest(output_pre_digest);
 
-    let pre_state_bytes: [u8; 32] = hex::decode(PRE_STATE_HEX).unwrap().try_into().unwrap();
-    let post_state_bytes: [u8; 32] = hex::decode(POST_STATE_HEX).unwrap().try_into().unwrap();
-    let input_bytes: [u8; 32] = hex::decode(INPUT_HEX).unwrap().try_into().unwrap();
-    let claim_tag: [u8; 32] = hex::decode(CLAIM_TAG).unwrap().try_into().unwrap();
-
     let mut claim_pre_digest: [u8; 170] = [0; 170];
 
     let data: [u8; 8] = [0; 8];
@@ -224,10 +69,10 @@ pub fn verify_winternitz_and_groth16(
     let claim_len: [u8; 2] = [4, 0];
 
     let concatenated = [
-        &claim_tag[..],
-        &input_bytes[..],
-        &pre_state_bytes[..],
-        &post_state_bytes[..],
+        &CLAIM_TAG[..],
+        &INPUT[..],
+        &PRE_STATE[..],
+        &POST_STATE[..],
         &output_digest[..],
         &data[..],
         &claim_len[..],
@@ -260,10 +105,7 @@ pub fn verify_winternitz_and_groth16(
     let a1_dec = to_decimal(a1_str).unwrap();
     let a0_dec = to_decimal(a0_str).unwrap();
 
-    let mut bn254_control_id_bytes: [u8; 32] = hex::decode(BN254_CONTROL_ID_HEX)
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let mut bn254_control_id_bytes: [u8; 32] = BN254_CONTROL_ID;
     bn254_control_id_bytes.reverse();
 
     let bn254_control_id_hex: String = bn254_control_id_bytes.encode_hex();
@@ -313,4 +155,9 @@ impl From<Groth16Seal> for Proof<Bn254> {
             c: ark_bn254_c,
         }
     }
+}
+
+fn to_decimal(s: &str) -> Option<String> {
+    let int = BigUint::from_str_radix(s, 16).ok();
+    int.map(|n| n.to_str_radix(10))
 }

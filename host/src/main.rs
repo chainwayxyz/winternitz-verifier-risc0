@@ -10,7 +10,7 @@ use risc0_zkvm::{
 use std::convert::TryInto;
 use winternitz::WINTERNITZ_ELF;
 use winternitz_core::groth16::Groth16Seal;
-use winternitz_core::{generate_public_key, sign_digits, Parameters};
+use winternitz_core::winternitz::{generate_public_key, sign_digits, Parameters};
 use work_only::WORK_ONLY_ELF;
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 

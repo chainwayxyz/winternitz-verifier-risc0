@@ -1,7 +1,7 @@
-use crate::constants::{CONST_27_82, CONST_3_82, MODULUS};
-use crate::utils::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp};
+use crate::{constants::{CONST_27_82, CONST_3_82, MODULUS}, field::{bigint_to_bytes, negate_bigint, sqrt_f2, sqrt_fp, bytes_to_bigint}};
 use num_bigint::BigUint;
 use num_traits::One;
+
 
 #[derive(Copy, Clone)]
 pub struct G1 {
@@ -113,12 +113,9 @@ impl Groth16Seal {
     }
 
     pub fn to_compressed(&self) -> [u8; 128] {
-        let a = g1_compress(vec![self.a.x.to_vec(), self.a.y.to_vec()]);
-        let b = g2_compress(vec![
-            vec![self.b.x0.to_vec(), self.b.x1.to_vec()],
-            vec![self.b.y0.to_vec(), self.b.y1.to_vec()],
-        ]);
-        let c = g1_compress(vec![self.c.x.to_vec(), self.c.y.to_vec()]);
+        let a = g1_compress([&self.a.x, &self.a.y]);
+        let b = g2_compress([[&self.b.x0, &self.b.x1], [&self.b.y0, &self.b.y1]]);
+        let c = g1_compress([&self.c.x, &self.c.y]);
 
         let mut compressed = [0u8; 128];
         compressed[0..32].copy_from_slice(&a);
@@ -141,13 +138,11 @@ impl Groth16Seal {
     }
 }
 
-pub fn g1_compress(point: Vec<Vec<u8>>) -> Vec<u8> {
+pub fn g1_compress(point: [&[u8; 32]; 2]) -> Vec<u8> {
     let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
 
-    let x = BigUint::from_bytes_be(&point[0]);
-    let y = BigUint::from_bytes_be(&point[1]);
-
-    println!("x: {:?}, y: {:?}", x, y);
+    let x = BigUint::from_bytes_be(point[0]);
+    let y = BigUint::from_bytes_be(point[1]);
 
     let y_neg = negate_bigint(&y, &modulus);
     let sign: u8 = if y < y_neg { 0x1 } else { 0x0 };
@@ -157,11 +152,11 @@ pub fn g1_compress(point: Vec<Vec<u8>>) -> Vec<u8> {
     bigint_to_bytes(&compressed).to_vec()
 }
 
-pub fn g2_compress(point: Vec<Vec<Vec<u8>>>) -> Vec<u8> {
-    let x_real = BigUint::from_bytes_be(&point[0][1]);
-    let x_imaginary = BigUint::from_bytes_be(&point[0][0]);
-    let y_real = BigUint::from_bytes_be(&point[1][1]);
-    let y_img = BigUint::from_bytes_be(&point[1][0]);
+pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Vec<u8> {
+    let x_real = BigUint::from_bytes_be(point[0][1]);
+    let x_imaginary = BigUint::from_bytes_be(point[0][0]);
+    let y_real = BigUint::from_bytes_be(point[1][1]);
+    let y_img = BigUint::from_bytes_be(point[1][0]);
 
     let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
 
