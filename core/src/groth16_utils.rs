@@ -2,8 +2,7 @@ use crate::{
     constants::{
         ASSUMPTIONS, CLAIM_TAG, CONST_27_82, CONST_3_82, INPUT, MODULUS, OUTPUT_TAG, POST_STATE,
         PRE_STATE,
-    },
-    field::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp},
+    }, error::FieldError, field::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp}
 };
 use num_bigint::BigUint;
 use num_traits::One;
@@ -62,7 +61,7 @@ pub fn g1_compress(point: [&[u8; 32]; 2]) -> Vec<u8> {
     bigint_to_bytes(&compressed).to_vec()
 }
 
-pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Vec<u8> {
+pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Result<Vec<u8>, FieldError> {
     let x_real = BigUint::from_bytes_be(point[0][1]);
     let x_imaginary = BigUint::from_bytes_be(point[0][0]);
     let y_real = BigUint::from_bytes_be(point[1][1]);
@@ -87,7 +86,7 @@ pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Vec<u8> {
         &modulus,
     );
 
-    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus), &modulus);
+    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus), &modulus)?;
 
     let d_check = (y_real.pow(2) + y_img.pow(2)) % modulus;
 
@@ -101,12 +100,12 @@ pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Vec<u8> {
     let mut compressed = Vec::new();
     compressed.extend_from_slice(&bigint_to_bytes(&compressed_x0));
     compressed.extend_from_slice(&bigint_to_bytes(&compressed_x1));
-    compressed
+    Ok(compressed)
 }
 
-pub fn g2_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 4]> {
+pub fn g2_decompress(compressed: &[u8]) -> Result<[[u8; 32]; 4], FieldError> {
     if compressed.len() != 64 {
-        return None;
+        return Err(FieldError::InputLengthError);
     }
     let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
     let compressed_x0 = bytes_to_bigint(&compressed[0..32].try_into().unwrap());
@@ -125,7 +124,7 @@ pub fn g2_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 4]> {
     let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
     let y0 = (&const_27_82 + &a_3 + ((&n3ab * &x1) % &modulus)) % &modulus;
     let y1 = negate_bigint(&((&const_3_82 + &b_3 + (&n3ab * &x0)) % &modulus), &modulus);
-    let (mut y0, mut y1) = sqrt_f2(y0, y1, hint, &modulus);
+    let (mut y0, mut y1) = sqrt_f2(y0, y1, hint, &modulus)?;
 
     if negate_point {
         y1 = negate_bigint(&y1, &modulus);
@@ -141,12 +140,12 @@ pub fn g2_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 4]> {
         padded
     };
 
-    Some([to_bytes(&x0), to_bytes(&x1), to_bytes(&y0), to_bytes(&y1)])
+    Ok([to_bytes(&x0), to_bytes(&x1), to_bytes(&y0), to_bytes(&y1)])
 }
 
-pub fn g1_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 2]> {
+pub fn g1_decompress(compressed: &[u8]) -> Result<[[u8; 32]; 2], FieldError> {
     if compressed.len() != 32 {
-        return None;
+        return Err(FieldError::InputLengthError);
     }
 
     let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();
@@ -155,7 +154,7 @@ pub fn g1_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 2]> {
     let negate_point = (&compressed_x & BigUint::one()) == BigUint::one();
     let x = &compressed_x >> 1;
 
-    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus), &modulus);
+    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus), &modulus)?;
     let y = if negate_point {
         negate_bigint(&y, &modulus)
     } else {
@@ -171,7 +170,7 @@ pub fn g1_decompress(compressed: &[u8]) -> Option<[[u8; 32]; 2]> {
     
         padded
     };
-    Some([to_bytes(&x), to_bytes(&y)])
+    Ok([to_bytes(&x), to_bytes(&y)])
 }
 
 #[cfg(test)]
@@ -225,7 +224,7 @@ mod tests {
             ],
         ];
 
-        let compressed = g2_compress(point);
+        let compressed = g2_compress(point).unwrap();
         let decompressed = g2_decompress(&compressed).unwrap();
 
         let decompressed = [
@@ -271,7 +270,7 @@ mod tests {
                 ],
             ],
         ];
-        let compressed = g2_compress(point);
+        let compressed = g2_compress(point).unwrap();
         let decompressed = g2_decompress(&compressed).unwrap();
 
         let decompressed = [

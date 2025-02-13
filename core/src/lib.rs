@@ -4,6 +4,7 @@ pub mod groth16;
 pub mod groth16_utils;
 pub mod utils;
 pub mod winternitz;
+pub mod error;
 use ark_std::vec::Vec;
 use groth16::{Groth16, Groth16Seal};
 use std::convert::TryInto;
@@ -14,21 +15,17 @@ pub fn verify_winternitz_and_groth16(
     signature: &[Vec<u8>],
     message: &[u8],
     params: &Parameters,
-) {
-    assert_eq!(message.len(), 144, "Message length mismatch");
+) -> bool {
 
-    // winternitz verification
     if !verify_signature(pub_key, signature, message, params).unwrap() {
-        panic!("Verification failed");
-    }
-
+        return false;
+    }   
     let compressed_seal: [u8; 128] = message[0..128].try_into().unwrap();
     let total_work: [u8; 16] = message[128..144].try_into().unwrap();
-    let seal = Groth16Seal::from_compressed(&compressed_seal).unwrap();
-
+    let seal = match Groth16Seal::from_compressed(&compressed_seal) {
+        Ok(seal) => seal,
+        Err(_) => return false,
+    };
     let groth16_proof = Groth16::new(seal, total_work);
-
-    if !groth16_proof.verify() {
-        panic!("Verification failed");
-    }
+    groth16_proof.verify()
 }
