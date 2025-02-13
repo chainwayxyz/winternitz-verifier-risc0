@@ -29,7 +29,7 @@ fn main() {
 
     let seal = Groth16Seal::from_seal(g16_proof.seal.as_slice().try_into().unwrap());
 
-    let compressed_proof = seal.to_compressed();
+    let compressed_proof = seal.to_compressed().unwrap();
 
     let commited_total_work: [u8; 16] = work_only_groth16_proof_receipt
         .journal
