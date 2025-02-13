@@ -1,4 +1,4 @@
-mod constants;
+pub mod constants;
 pub mod error;
 pub mod field;
 pub mod groth16;
