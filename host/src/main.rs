@@ -1,3 +1,5 @@
+use ark_groth16::prepare_verifying_key;
+use ark_serialize::CanonicalSerialize;
 use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
     BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
@@ -9,6 +11,7 @@ use risc0_zkvm::{
 };
 use std::convert::TryInto;
 use winternitz::WINTERNITZ_ELF;
+use winternitz_core::constants::create_verifying_key;
 use winternitz_core::groth16::Groth16Seal;
 use winternitz_core::winternitz::{generate_public_key, sign_digits, Parameters};
 use work_only::WORK_ONLY_ELF;
@@ -24,10 +27,12 @@ fn main() {
         block_header_circuit_output.method_id,
     );
 
-    let g16_proof: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
+    let g16_proof_receipt: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
 
-    let seal = Groth16Seal::from_seal(g16_proof.seal.as_slice().try_into().unwrap());
+    println!("g16_proof_receipt: {:?}", g16_proof_receipt);
+
+    let seal = Groth16Seal::from_seal(g16_proof_receipt.seal.as_slice().try_into().unwrap());
 
     let compressed_proof = seal.to_compressed().unwrap();
 
