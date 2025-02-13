@@ -88,7 +88,7 @@ pub fn g2_compress(point: [[&[u8; 32]; 2]; 2]) -> Result<Vec<u8>, FieldError> {
         &modulus,
     );
 
-    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus), &modulus)?;
+    let d = sqrt_fp(&((m.pow(2) + n.pow(2)) % &modulus))?;
 
     let d_check = (y_real.pow(2) + y_img.pow(2)) % modulus;
 
@@ -126,7 +126,7 @@ pub fn g2_decompress(compressed: &[u8]) -> Result<[[u8; 32]; 4], FieldError> {
     let const_3_82 = BigUint::parse_bytes(CONST_3_82, 10).unwrap();
     let y0 = (&const_27_82 + &a_3 + ((&n3ab * &x1) % &modulus)) % &modulus;
     let y1 = negate_bigint(&((&const_3_82 + &b_3 + (&n3ab * &x0)) % &modulus), &modulus);
-    let (mut y0, mut y1) = sqrt_f2(y0, y1, hint, &modulus)?;
+    let (mut y0, mut y1) = sqrt_f2(y0, y1, hint)?;
 
     if negate_point {
         y1 = negate_bigint(&y1, &modulus);
@@ -156,7 +156,7 @@ pub fn g1_decompress(compressed: &[u8]) -> Result<[[u8; 32]; 2], FieldError> {
     let negate_point = (&compressed_x & BigUint::one()) == BigUint::one();
     let x = &compressed_x >> 1;
 
-    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus), &modulus)?;
+    let y = sqrt_fp(&((&x * &x * &x + BigUint::from(3u8)) % &modulus))?;
     let y = if negate_point {
         negate_bigint(&y, &modulus)
     } else {
@@ -293,7 +293,6 @@ mod tests {
         assert_eq!(point, decompressed);
     }
 
-
     #[test]
     fn test_g1_compress_decompress_error() {
         let point: [&[u8; 32]; 2] = [
@@ -311,8 +310,5 @@ mod tests {
         let decompressed = g1_decompress(&compressed).unwrap_err();
 
         assert_eq!(FieldError::F1SquareRootError, decompressed);
-
     }
-
-
 }
