@@ -2,7 +2,7 @@ use num_bigint::BigUint;
 use num_traits::Zero;
 
 use crate::{
-    constants::{CONST_1_2, EXP_SQRT},
+    constants::{CONST_1_2, EXP_SQRT, MODULUS},
     error::FieldError,
 };
 
@@ -14,7 +14,8 @@ pub fn bytes_to_bigint(bytes: &[u8; 32]) -> BigUint {
     BigUint::from_bytes_be(bytes)
 }
 
-pub fn sqrt_fp(value: &BigUint, modulus: &BigUint) -> Result<BigUint, FieldError> {
+pub fn sqrt_fp(value: &BigUint) -> Result<BigUint, FieldError> {
+    let modulus = &BigUint::parse_bytes(MODULUS, 10).unwrap();
     let exp_sqrt = BigUint::parse_bytes(EXP_SQRT, 10).unwrap();
     let result = value.modpow(&exp_sqrt, modulus);
     let neg_result = negate_bigint(&result, modulus);
@@ -71,7 +72,6 @@ pub(crate) fn sqrt_f2(
 mod tests {
 
     use super::*;
-
     #[test]
     fn test_mod_inverse() {
         let value = BigUint::from(5u8);
@@ -82,9 +82,22 @@ mod tests {
 
     #[test]
     fn test_sqrt_fp() {
-        let value = BigUint::from(5u8);
-        let modulus = BigUint::from(7u8);
-        let result = sqrt_fp(&value, &modulus).unwrap();
-        assert_eq!((result.clone() * result.clone()) % modulus, value);
+        let nums_with_squares: [u8; 137] = [
+            1, 2, 4, 7, 8, 9, 11, 13, 14, 15, 16, 17, 18, 19, 22, 23, 25, 26, 28, 29, 30, 32, 34,
+            36, 37, 38, 44, 46, 49, 50, 52, 53, 56, 58, 60, 63, 64, 68, 71, 72, 74, 76, 77, 79, 81,
+            83, 88, 91, 92, 93, 98, 99, 100, 104, 105, 106, 107, 112, 113, 116, 117, 119, 120, 121,
+            123, 126, 128, 129, 133, 135, 136, 141, 142, 143, 144, 148, 149, 151, 152, 153, 154,
+            155, 157, 158, 161, 162, 163, 165, 166, 169, 171, 173, 175, 176, 177, 181, 182, 183,
+            184, 186, 187, 191, 193, 195, 196, 197, 198, 199, 200, 201, 203, 205, 207, 208, 209,
+            210, 212, 214, 215, 219, 221, 224, 225, 226, 229, 232, 233, 234, 235, 238, 240, 241,
+            242, 246, 247, 252, 253,
+        ];
+        for &value in nums_with_squares.iter() {
+            let value = BigUint::from(value);
+            let modulus = &BigUint::parse_bytes(MODULUS, 10).unwrap();
+            let result = sqrt_fp(&value).unwrap();
+
+            assert_eq!((result.clone() * result.clone()) % modulus, value % modulus);
+        }
     }
 }
