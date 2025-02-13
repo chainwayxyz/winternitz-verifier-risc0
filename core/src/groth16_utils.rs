@@ -2,7 +2,9 @@ use crate::{
     constants::{
         ASSUMPTIONS, CLAIM_TAG, CONST_27_82, CONST_3_82, INPUT, MODULUS, OUTPUT_TAG, POST_STATE,
         PRE_STATE,
-    }, error::FieldError, field::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp}
+    },
+    error::FieldError,
+    field::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp},
 };
 use num_bigint::BigUint;
 use num_traits::One;
@@ -167,7 +169,7 @@ pub fn g1_decompress(compressed: &[u8]) -> Result<[[u8; 32]; 2], FieldError> {
         assert!(bytes.len() <= 32, "BigInt should fit in 32 bytes");
         let start = 32 - bytes.len();
         padded[start..].copy_from_slice(&bytes);
-    
+
         padded
     };
     Ok([to_bytes(&x), to_bytes(&y)])
@@ -238,8 +240,14 @@ mod tests {
     #[test]
     fn test_g1_compress_decompress_small_number() {
         let point: [&[u8; 32]; 2] = [
-            &[ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            &[ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+            &[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ],
+            &[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 2,
+            ],
         ];
 
         let compressed = g1_compress(point);
@@ -255,18 +263,22 @@ mod tests {
         let point: [[&[u8; 32]; 2]; 2] = [
             [
                 &[
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 14
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 12, 14,
                 ],
                 &[
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
                 ],
             ],
             [
                 &[
-                    0, 62, 203, 101, 35, 162, 243, 24, 160, 20, 131, 54, 150, 145, 235, 58, 164, 2, 111, 102, 79, 22, 7, 54, 110, 147, 87, 81, 199, 125, 94, 94
+                    0, 62, 203, 101, 35, 162, 243, 24, 160, 20, 131, 54, 150, 145, 235, 58, 164, 2,
+                    111, 102, 79, 22, 7, 54, 110, 147, 87, 81, 199, 125, 94, 94,
                 ],
                 &[
-                    28, 200, 245, 204, 45, 213, 100, 23, 213, 173, 160, 60, 171, 232, 163, 82, 192, 85, 210, 127, 250, 141, 200, 16, 202, 178, 24, 189, 84, 134, 168, 45
+                    28, 200, 245, 204, 45, 213, 100, 23, 213, 173, 160, 60, 171, 232, 163, 82, 192,
+                    85, 210, 127, 250, 141, 200, 16, 202, 178, 24, 189, 84, 134, 168, 45,
                 ],
             ],
         ];
@@ -280,4 +292,27 @@ mod tests {
 
         assert_eq!(point, decompressed);
     }
+
+
+    #[test]
+    fn test_g1_compress_decompress_error() {
+        let point: [&[u8; 32]; 2] = [
+            &[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 4,
+            ],
+            &[
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 2,
+            ],
+        ];
+
+        let compressed = g1_compress(point);
+        let decompressed = g1_decompress(&compressed).unwrap_err();
+
+        assert_eq!(FieldError::F1SquareRootError, decompressed);
+
+    }
+
+
 }

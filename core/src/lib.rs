@@ -1,10 +1,10 @@
 mod constants;
+pub mod error;
 pub mod field;
 pub mod groth16;
 pub mod groth16_utils;
 pub mod utils;
 pub mod winternitz;
-pub mod error;
 use ark_std::vec::Vec;
 use groth16::{Groth16, Groth16Seal};
 use std::convert::TryInto;
@@ -16,10 +16,9 @@ pub fn verify_winternitz_and_groth16(
     message: &[u8],
     params: &Parameters,
 ) -> bool {
-
     if !verify_signature(pub_key, signature, message, params).unwrap() {
         return false;
-    }   
+    }
     let compressed_seal: [u8; 128] = message[0..128].try_into().unwrap();
     let total_work: [u8; 16] = message[128..144].try_into().unwrap();
     let seal = match Groth16Seal::from_compressed(&compressed_seal) {

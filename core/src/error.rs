@@ -1,5 +1,6 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FieldError {
-    SquareRootError,
+    F1SquareRootError,
+    F2SquareRootError,
     InputLengthError,
 }
