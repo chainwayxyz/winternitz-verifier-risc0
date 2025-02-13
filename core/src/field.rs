@@ -1,7 +1,10 @@
 use num_bigint::BigUint;
 use num_traits::Zero;
 
-use crate::{constants::{CONST_1_2, EXP_SQRT}, error::FieldError};
+use crate::{
+    constants::{CONST_1_2, EXP_SQRT},
+    error::FieldError,
+};
 
 pub(crate) fn mod_inverse(value: &BigUint, modulus: &BigUint) -> BigUint {
     value.modpow(&(modulus - BigUint::from(2u8)), modulus)
@@ -20,9 +23,9 @@ pub fn sqrt_fp(value: &BigUint, modulus: &BigUint) -> Result<BigUint, FieldError
     } else {
         result
     };
-    
-    if (&result * &result) % modulus == value % modulus {
-        return Err(FieldError::SquareRootError);
+
+    if (&result * &result) % modulus != value % modulus {
+        return Err(FieldError::F1SquareRootError);
     }
     Ok(result)
 }
@@ -55,15 +58,14 @@ pub(crate) fn sqrt_f2(
     let x0 = sqrt_fp(&((((&a0 + &d) % modulus) * const_1_2) % modulus), modulus)?;
     let x1 = (&a1 * mod_inverse(&(&BigUint::from(2u8) * (&x0)), modulus)) % modulus;
 
-    assert_eq!(
-        a0,
-        (x0.clone().pow(2) + negate_bigint(&(x1.clone().pow(2)), modulus)) % modulus
-    );
-    assert_eq!(a1, (BigUint::from(2u8) * x0.clone() * x1.clone()) % modulus);
+    if a0 % modulus != (x0.clone().pow(2) + negate_bigint(&(x1.clone().pow(2)), modulus)) % modulus
+        || a1 != (BigUint::from(2u8) * x0.clone() * x1.clone()) % modulus
+    {
+        return Err(FieldError::F2SquareRootError);
+    }
 
     Ok((x0, x1))
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -77,7 +79,7 @@ mod tests {
         let result = mod_inverse(&value, &modulus);
         assert_eq!(result, BigUint::from(3u8));
     }
-    
+
     #[test]
     fn test_sqrt_fp() {
         let value = BigUint::from(5u8);
@@ -85,5 +87,4 @@ mod tests {
         let result = sqrt_fp(&value, &modulus).unwrap();
         assert_eq!((result.clone() * result.clone()) % modulus, value);
     }
-
 }

@@ -204,7 +204,7 @@ impl Groth16 {
             .iter()
             .map(|&v| Fr::from_str(v).unwrap())
             .collect::<Vec<_>>();
-        
+
         ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
             .unwrap()
     }
