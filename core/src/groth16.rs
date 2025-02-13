@@ -1,4 +1,5 @@
 use crate::constants::{create_verifying_key, BN254_CONTROL_ID};
+use crate::error::FieldError;
 use crate::groth16_utils::{
     create_claim_digest, create_output_digest, g1_compress, g1_decompress, g2_compress,
     g2_decompress,
@@ -112,16 +113,16 @@ impl Groth16Seal {
         Groth16Seal::new(a, b, c)
     }
     // first decompress than create a new Groth16Seal
-    pub fn from_compressed(compressed: &[u8; 128]) -> Option<Groth16Seal> {
+    pub fn from_compressed(compressed: &[u8; 128]) -> Result<Groth16Seal, FieldError> {
         let a = G1::new_from_vec(&g1_decompress(&compressed[0..32])?);
         let b = G2::new_from_vec(&g2_decompress(&compressed[32..96])?);
         let c = G1::new_from_vec(&g1_decompress(&compressed[96..128])?);
-        Some(Groth16Seal::new(a, b, c))
+        Ok(Groth16Seal::new(a, b, c))
     }
 
-    pub fn to_compressed(&self) -> [u8; 128] {
+    pub fn to_compressed(&self) -> Result<[u8; 128], FieldError> {
         let a = g1_compress([&self.a.x, &self.a.y]);
-        let b = g2_compress([[&self.b.x0, &self.b.x1], [&self.b.y0, &self.b.y1]]);
+        let b = g2_compress([[&self.b.x0, &self.b.x1], [&self.b.y0, &self.b.y1]])?;
         let c = g1_compress([&self.c.x, &self.c.y]);
 
         let mut compressed = [0u8; 128];
@@ -129,7 +130,7 @@ impl Groth16Seal {
         compressed[32..96].copy_from_slice(&b);
         compressed[96..128].copy_from_slice(&c);
 
-        compressed
+        Ok(compressed)
     }
 
     pub fn a(&self) -> &G1 {
@@ -170,8 +171,8 @@ impl Groth16 {
         let claim_digest: [u8; 32] = create_claim_digest(&output_digest);
 
         let claim_digest_hex: String = claim_digest.encode_hex();
-        let c0_str = &claim_digest_hex[0..32];
-        let c1_str = &claim_digest_hex[32..64];
+        let c0_str = &claim_digest_hex[32..64];
+        let c1_str = &claim_digest_hex[0..32];
 
         let c0_dec = to_decimal(c0_str).unwrap();
         let c1_dec = to_decimal(c1_str).unwrap();
@@ -184,8 +185,8 @@ impl Groth16 {
         groth16_control_root_bytes.reverse();
 
         let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
-        let a1_str = &groth16_control_root_bytes[0..32];
         let a0_str = &groth16_control_root_bytes[32..64];
+        let a1_str = &groth16_control_root_bytes[0..32];
 
         let a1_dec = to_decimal(a1_str).unwrap();
         let a0_dec = to_decimal(a0_str).unwrap();
@@ -197,13 +198,13 @@ impl Groth16 {
 
         let bn254_control_id_dec = to_decimal(&bn254_control_id_hex).unwrap();
 
-        let values = [&a0_dec, &a1_dec, &c1_dec, &c0_dec, &bn254_control_id_dec];
+        let values = [&a0_dec, &a1_dec, &c0_dec, &c1_dec, &bn254_control_id_dec];
 
         let public_inputs = values
             .iter()
             .map(|&v| Fr::from_str(v).unwrap())
             .collect::<Vec<_>>();
-
+        
         ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
             .unwrap()
     }
