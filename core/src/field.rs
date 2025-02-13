@@ -50,12 +50,12 @@ pub(crate) fn sqrt_f2(
     a0: BigUint,
     a1: BigUint,
     hint: bool,
-    modulus: &BigUint,
 ) -> Result<(BigUint, BigUint), FieldError> {
+    let modulus = &BigUint::parse_bytes(MODULUS, 10).unwrap();
     let const_1_2 = BigUint::parse_bytes(CONST_1_2, 10).unwrap();
-    let d = sqrt_fp(&((a0.pow(2) + &a1.pow(2)) % modulus), modulus)?;
+    let d = sqrt_fp(&((a0.pow(2) + &a1.pow(2)) % modulus))?;
     let d = if hint { negate_bigint(&d, modulus) } else { d };
-    let x0 = sqrt_fp(&((((&a0 + &d) % modulus) * const_1_2) % modulus), modulus)?;
+    let x0 = sqrt_fp(&((((&a0 + &d) % modulus) * const_1_2) % modulus))?;
     let x1 = (&a1 * mod_inverse(&(&BigUint::from(2u8) * (&x0)), modulus)) % modulus;
 
     if a0 % modulus != (x0.clone().pow(2) + negate_bigint(&(x1.clone().pow(2)), modulus)) % modulus
