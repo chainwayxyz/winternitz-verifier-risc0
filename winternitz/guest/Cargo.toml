@@ -10,6 +10,8 @@ risc0-zkvm = { version = "1.2.2", default-features = false, features = ['std'] }
 winternitz-core = { path = "../../core" }
 serde = "1.0"
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = { version = "0.3.18", features = ["json"] }
 
 [[example]]
 name = "guest"

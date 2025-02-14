@@ -16,5 +16,5 @@ fn main() {
     }
     env::commit(&hash160(&pub_key_concat));
     let end = env::cycle_count();
-    println!("winternitz guest: {} cycles", end - start);
+    println!("WNT: {}", end - start);
 }

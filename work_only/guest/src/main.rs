@@ -2,6 +2,7 @@ use header_chain::header_chain::BlockHeaderCircuitOutput;
 use risc0_zkvm::guest::env;
 use crypto_bigint::{U256, U128, Encoding};
 fn main() {
+    let start = env::cycle_count();
     let block_header_circuit_output: BlockHeaderCircuitOutput = env::read(); 
     let image_id: [u32; 8]  = env::read();
     env::verify(image_id, &borsh::to_vec(&block_header_circuit_output).unwrap()).unwrap();
@@ -10,4 +11,6 @@ fn main() {
     let mut words = chain_state_total_work_u128.to_words();
     words.reverse();
     env::commit(&words);
+    let end = env::cycle_count();
+    println!("WO: {}", end - start);
 }

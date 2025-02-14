@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 risc0-zkvm = { version = "1.2.2", default-features = false, features = ['std'] }
 header-chain = { git="https://github.com/chainwayxyz/risc0-to-bitvm2.git", rev="a233e27" }
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = { version = "0.3.18", features = ["json"] }
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
