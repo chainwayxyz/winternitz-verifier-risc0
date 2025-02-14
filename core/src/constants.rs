@@ -1,6 +1,3 @@
-use ark_bn254::Fr;
-use ark_ff::BigInt;
-
 // COMPRESSION - DECOMPRESSION RELATED CONSTANTS
 pub static MODULUS: &[u8; 77] =
     b"21888242871839275222246405745257275088696311157297823662689037894645226208583";
@@ -12,37 +9,6 @@ pub static CONST_27_82: &[u8; 77] =
     b"19485874751759354771024239261021720505790618469301721065564631296452457478373";
 pub static CONST_3_82: &[u8; 77] =
     b"21621313080719284060999498358119991246151234191964923374119659383734918571893";
-
-// GROTH16 RELATED CONSTANTS
-pub static PRE_STATE: [u8; 32] =
-    hex_literal::hex!("7ae6254ab7f4af8121b79c6173b47a012fe6a3db3d4f3cd366c3c04db32743fe");
-pub static POST_STATE: [u8; 32] =
-    hex_literal::hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
-pub static INPUT: [u8; 32] =
-    hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000000");
-pub static ASSUMPTIONS: [u8; 32] =
-    hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000000");
-pub static BN254_CONTROL_ID: [u8; 32] =
-    hex_literal::hex!("c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404");
-pub static CLAIM_TAG: [u8; 32] =
-    hex_literal::hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af"); // hash of "risc0.ReceiptClaim"
-pub static OUTPUT_TAG: [u8; 32] =
-    hex_literal::hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4"); // hash of "risc0.Output"
-
-pub const A0_BIGINT: BigInt<4> = BigInt::new([3584412468423285388, 5573840904707615506, 0, 0]);
-pub const A0_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> = Fr::new(A0_BIGINT);
-
-pub const A1_BIGINT: BigInt<4> = BigInt::new([3118573868620133879, 7567222285189782870, 0, 0]);
-pub const A1_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> = Fr::new(A1_BIGINT);
-
-pub const BN_254_CONTROL_ID_BIGINT: BigInt<4> = BigInt::new([
-    10066737433256753856,
-    15970898588890169697,
-    12996428817291790227,
-    307492062473808767,
-]);
-pub const BN_254_CONTROL_ID_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> =
-    Fr::new(BN_254_CONTROL_ID_BIGINT);
 
 pub const PREPARED_VK: &[u8] = &[
     226, 242, 109, 190, 162, 153, 245, 34, 59, 100, 108, 177, 251, 51, 234, 219, 5, 157, 148, 7,

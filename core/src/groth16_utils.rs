@@ -1,53 +1,10 @@
 use crate::{
-    constants::{
-        ASSUMPTIONS, CLAIM_TAG, CONST_27_82, CONST_3_82, INPUT, MODULUS, OUTPUT_TAG, POST_STATE,
-        PRE_STATE,
-    },
+    constants::{CONST_27_82, CONST_3_82, MODULUS},
     error::FieldError,
     field::{bigint_to_bytes, bytes_to_bigint, negate_bigint, sqrt_f2, sqrt_fp},
 };
 use num_bigint::BigUint;
 use num_traits::One;
-use sha2::{Digest, Sha256};
-
-pub fn create_output_digest(total_work: &[u8; 16]) -> [u8; 32] {
-    let total_work_digest: [u8; 32] = Sha256::digest(total_work).into();
-    let len_output: [u8; 2] = hex::decode("0200").unwrap().try_into().unwrap();
-
-    let output_pre_digest: [u8; 98] = [
-        &OUTPUT_TAG,
-        &total_work_digest[..],
-        &ASSUMPTIONS[..],
-        &len_output[..],
-    ]
-    .concat()
-    .try_into()
-    .expect("slice has correct length");
-
-    Sha256::digest(output_pre_digest).into()
-}
-
-pub fn create_claim_digest(output_digest: &[u8; 32]) -> [u8; 32] {
-    let data: [u8; 8] = [0; 8];
-
-    let claim_len: [u8; 2] = [4, 0];
-
-    let concatenated = [
-        &CLAIM_TAG,
-        &INPUT,
-        &PRE_STATE,
-        &POST_STATE,
-        output_digest,
-        &data[..],
-        &claim_len,
-    ]
-    .concat();
-
-    let mut claim_digest = Sha256::digest(concatenated);
-    claim_digest.reverse();
-
-    claim_digest.into()
-}
 
 pub fn g1_compress(point: [&[u8; 32]; 2]) -> Vec<u8> {
     let modulus = BigUint::parse_bytes(MODULUS, 10).unwrap();

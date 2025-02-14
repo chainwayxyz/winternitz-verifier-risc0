@@ -15,7 +15,6 @@ const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-gu
 const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/regtest-winternitz-guest");
 const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/regtest-work-only-guest");
 
-
 fn main() {
     let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
     let winternitz_id: [u32; 8] = compute_image_id(WINTERNITZ_ELF).unwrap().into();
@@ -36,7 +35,6 @@ fn main() {
 
     let g16_proof_receipt: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
-
 
     let seal = Groth16Seal::from_seal(g16_proof_receipt.seal.as_slice().try_into().unwrap());
 
