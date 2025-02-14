@@ -27,7 +27,6 @@ fn main() {
     let g16_proof_receipt: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
 
-    println!("g16_proof_receipt: {:?}", g16_proof_receipt);
 
     let seal = Groth16Seal::from_seal(g16_proof_receipt.seal.as_slice().try_into().unwrap());
 
