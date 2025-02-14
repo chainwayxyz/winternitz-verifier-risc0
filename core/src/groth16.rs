@@ -1,91 +1,20 @@
 use crate::constants::{A0_ARK, A1_ARK, BN_254_CONTROL_ID_ARK, PREPARED_VK};
-use crate::error::FieldError;
 use crate::groth16_utils::{
-    create_claim_digest, create_output_digest, g1_compress, g1_decompress, g2_compress,
-    g2_decompress,
+    create_claim_digest, create_output_digest
 };
 use crate::utils::to_decimal;
 use ark_bn254::{Bn254, Fr};
-use ark_ff::PrimeField;
+use ark_ff::{PrimeField, Field};
 use ark_groth16::{PreparedVerifyingKey, Proof};
-use ark_serialize::CanonicalDeserialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError};
 use hex::ToHex;
 use risc0_zkvm::guest::env;
 
 use std::str::FromStr;
-#[derive(Copy, Clone)]
-pub struct G1 {
-    x: [u8; 32],
-    y: [u8; 32],
-}
+type G1 = ark_bn254::G1Affine;
+type G2 = ark_bn254::G2Affine;
 
-impl G1 {
-    pub fn new_from_vec(point: &[[u8; 32]]) -> G1 {
-        assert!(point.len() == 2, "point must contain exactly two elements");
-        G1 {
-            x: point[0],
-            y: point[1],
-        }
-    }
-    pub fn new_from_bytes(x: &[u8; 32], y: &[u8; 32]) -> G1 {
-        G1 { x: *x, y: *y }
-    }
-
-    pub fn x(&self) -> &[u8; 32] {
-        &self.x
-    }
-
-    pub fn y(&self) -> &[u8; 32] {
-        &self.y
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct G2 {
-    // 0 -> Real, 1 -> Imaginary
-    x0: [u8; 32],
-    x1: [u8; 32],
-    y0: [u8; 32],
-    y1: [u8; 32],
-}
-
-impl G2 {
-    pub fn new_from_vec(point: &[[u8; 32]; 4]) -> G2 {
-        assert!(point.len() == 4, "point must contain exactly four elements");
-        G2 {
-            x0: point[0],
-            x1: point[1],
-            y0: point[2],
-            y1: point[3],
-        }
-    }
-    pub fn new_from_bytes(x0: &[u8; 32], x1: &[u8; 32], y0: &[u8; 32], y1: &[u8; 32]) -> G2 {
-        G2 {
-            x0: *x0,
-            x1: *x1,
-            y0: *y0,
-            y1: *y1,
-        }
-    }
-
-    pub fn x0(&self) -> &[u8; 32] {
-        &self.x0
-    }
-
-    pub fn x1(&self) -> &[u8; 32] {
-        &self.x1
-    }
-
-    pub fn y0(&self) -> &[u8; 32] {
-        &self.y0
-    }
-
-    pub fn y1(&self) -> &[u8; 32] {
-        &self.y1
-    }
-}
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Groth16Seal {
     a: G1,
     b: G2,
@@ -98,39 +27,59 @@ impl Groth16Seal {
     }
 
     pub fn from_seal(seal: &[u8; 256]) -> Groth16Seal {
-        let a = G1::new_from_bytes(
-            seal[0..32].try_into().expect("slice has correct length"),
-            seal[32..64].try_into().expect("slice has correct length"),
+        let a = G1::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(&seal[0..32]),
+            ark_bn254::Fq::from_be_bytes_mod_order(&seal[32..64]),
         );
-        let b = G2::new_from_bytes(
-            seal[64..96].try_into().expect("slice has correct length"),
-            seal[96..128].try_into().expect("slice has correct length"),
-            seal[128..160].try_into().expect("slice has correct length"),
-            seal[160..192].try_into().expect("slice has correct length"),
+
+        let b = G2::new(
+            ark_bn254::Fq2::from_base_prime_field_elems([
+                ark_bn254::Fq::from_be_bytes_mod_order(&seal[96..128]),
+                ark_bn254::Fq::from_be_bytes_mod_order(&seal[64..96]),
+            ])
+            .unwrap(),
+            ark_bn254::Fq2::from_base_prime_field_elems([
+                ark_bn254::Fq::from_be_bytes_mod_order(&seal[160..192]),
+                ark_bn254::Fq::from_be_bytes_mod_order(&seal[128..160]),
+            ])
+            .unwrap(),
         );
-        let c = G1::new_from_bytes(
-            seal[192..224].try_into().expect("slice has correct length"),
-            seal[224..256].try_into().expect("slice has correct length"),
+
+        let c = G1::new(
+            ark_bn254::Fq::from_be_bytes_mod_order(&seal[192..224]),
+            ark_bn254::Fq::from_be_bytes_mod_order(&seal[224..256]),
         );
+
         Groth16Seal::new(a, b, c)
     }
+
     // first decompress than create a new Groth16Seal
-    pub fn from_compressed(compressed: &[u8; 128]) -> Result<Groth16Seal, FieldError> {
-        let a = G1::new_from_vec(&g1_decompress(&compressed[0..32])?);
-        let b = G2::new_from_vec(&g2_decompress(&compressed[32..96])?);
-        let c = G1::new_from_vec(&g1_decompress(&compressed[96..128])?);
+    pub fn from_compressed(compressed: &[u8; 128]) -> Result<Groth16Seal, SerializationError> {
+        let a_compressed = &compressed[0..32];
+        let b_compressed = &compressed[32..96];
+        let c_compressed = &compressed[96..128];
+        let a = ark_bn254::G1Affine::deserialize_compressed(a_compressed)?;
+        let b = ark_bn254::G2Affine::deserialize_compressed(b_compressed)?;
+        let c = ark_bn254::G1Affine::deserialize_compressed(c_compressed)?;
+
         Ok(Groth16Seal::new(a, b, c))
     }
 
-    pub fn to_compressed(&self) -> Result<[u8; 128], FieldError> {
-        let a = g1_compress([&self.a.x, &self.a.y]);
-        let b = g2_compress([[&self.b.x0, &self.b.x1], [&self.b.y0, &self.b.y1]])?;
-        let c = g1_compress([&self.c.x, &self.c.y]);
+    pub fn to_compressed(&self) -> Result<[u8; 128], SerializationError> {
+        let mut a_compressed = [0u8; 32];
+        let mut b_compressed = [0u8; 64];
+        let mut c_compressed = [0u8; 32];
+        ark_bn254::G1Affine::serialize_with_mode(&self.a, &mut a_compressed[..], Compress::Yes)
+            .unwrap();
+        ark_bn254::G2Affine::serialize_with_mode(&self.b, &mut b_compressed[..], Compress::Yes)
+            .unwrap();
+        ark_bn254::G1Affine::serialize_with_mode(&self.c, &mut c_compressed[..], Compress::Yes)
+            .unwrap();
 
         let mut compressed = [0u8; 128];
-        compressed[0..32].copy_from_slice(&a);
-        compressed[32..96].copy_from_slice(&b);
-        compressed[96..128].copy_from_slice(&c);
+        compressed[0..32].copy_from_slice(&a_compressed);
+        compressed[32..96].copy_from_slice(&b_compressed);
+        compressed[96..128].copy_from_slice(&c_compressed);
 
         Ok(compressed)
     }
@@ -195,31 +144,10 @@ impl Groth16 {
 
 impl From<Groth16Seal> for Proof<Bn254> {
     fn from(g16_seal: Groth16Seal) -> Self {
-        let ark_bn254_a = ark_bn254::G1Affine::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().x()),
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.a().y()),
-        );
-
-        let ark_bn254_c = ark_bn254::G1Affine::new(
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().x()),
-            ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.c().y()),
-        );
-
-        let ark_bn254_b = ark_bn254::G2Affine::new(
-            ark_bn254::Fq2::new(
-                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x0()),
-                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().x1()),
-            ),
-            ark_bn254::Fq2::new(
-                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y0()),
-                ark_bn254::Fq::from_be_bytes_mod_order(g16_seal.b().y1()),
-            ),
-        );
-
         Proof::<Bn254> {
-            a: ark_bn254_a,
-            b: ark_bn254_b,
-            c: ark_bn254_c,
+            a: g16_seal.a,
+            b: g16_seal.b,
+            c: g16_seal.c,
         }
     }
 }
