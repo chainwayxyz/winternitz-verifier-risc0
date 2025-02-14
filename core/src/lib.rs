@@ -34,5 +34,6 @@ pub fn verify_winternitz_and_groth16(
     let res = groth16_proof.verify();
     let end = env::cycle_count();
     println!("G16V: {}", end - start);
+    println!("{}", res);
     res
 }
