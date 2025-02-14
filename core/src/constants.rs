@@ -15,7 +15,7 @@ pub static CONST_3_82: &[u8; 77] =
 
 // GROTH16 RELATED CONSTANTS
 pub static PRE_STATE: [u8; 32] =
-    hex_literal::hex!("fe82e49db924b61c8de4f0c601e2e753f6327ee09e4a21fd2b130f4049cd430a");
+    hex_literal::hex!("7ae6254ab7f4af8121b79c6173b47a012fe6a3db3d4f3cd366c3c04db32743fe");
 pub static POST_STATE: [u8; 32] =
     hex_literal::hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
 pub static INPUT: [u8; 32] =
