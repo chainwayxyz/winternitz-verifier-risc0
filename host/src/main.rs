@@ -1,5 +1,3 @@
-use ark_groth16::prepare_verifying_key;
-use ark_serialize::CanonicalSerialize;
 use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
     BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
@@ -11,7 +9,6 @@ use risc0_zkvm::{
 };
 use std::convert::TryInto;
 use winternitz::WINTERNITZ_ELF;
-use winternitz_core::constants::create_verifying_key;
 use winternitz_core::groth16::Groth16Seal;
 use winternitz_core::winternitz::{generate_public_key, sign_digits, Parameters};
 use work_only::WORK_ONLY_ELF;

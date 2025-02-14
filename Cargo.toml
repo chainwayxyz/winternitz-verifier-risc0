@@ -2,6 +2,10 @@
 resolver = "2"
 members = ["host", "winternitz", "core", "headerchain", "work_only"]
 
+[workspace.dependencies]
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = { version = "0.3.18", features = ["json"] }
+
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
 opt-level = 3
