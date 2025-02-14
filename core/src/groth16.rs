@@ -1,4 +1,4 @@
-use crate::constants::{BN254_CONTROL_ID, PREPARED_VK};
+use crate::constants::{A0_ARK, A1_ARK, BN_254_CONTROL_ID_ARK, PREPARED_VK};
 use crate::error::FieldError;
 use crate::groth16_utils::{
     create_claim_digest, create_output_digest, g1_compress, g1_decompress, g2_compress,
@@ -11,7 +11,7 @@ use ark_groth16::{PreparedVerifyingKey, Proof};
 use ark_serialize::CanonicalDeserialize;
 use hex::ToHex;
 use risc0_zkvm::guest::env;
-use risc0_zkvm::Groth16ReceiptVerifierParameters;
+
 use std::str::FromStr;
 #[derive(Copy, Clone)]
 pub struct G1 {
@@ -181,33 +181,11 @@ impl Groth16 {
         let c0_dec = to_decimal(c0_str).unwrap();
         let c1_dec = to_decimal(c1_str).unwrap();
 
-        let groth16_receipt_verifier_params = Groth16ReceiptVerifierParameters::default();
+        let c0 = Fr::from_str(&c0_dec).unwrap();
+        let c1 = Fr::from_str(&c1_dec).unwrap();
 
-        let groth16_control_root = groth16_receipt_verifier_params.control_root;
-        let mut groth16_control_root_bytes: [u8; 32] =
-            groth16_control_root.as_bytes().try_into().unwrap();
-        groth16_control_root_bytes.reverse();
+        let public_inputs = vec![A0_ARK, A1_ARK, c0, c1, BN_254_CONTROL_ID_ARK];
 
-        let groth16_control_root_bytes: String = groth16_control_root_bytes.encode_hex();
-        let a0_str = &groth16_control_root_bytes[32..64];
-        let a1_str = &groth16_control_root_bytes[0..32];
-
-        let a1_dec = to_decimal(a1_str).unwrap();
-        let a0_dec = to_decimal(a0_str).unwrap();
-
-        let mut bn254_control_id_bytes: [u8; 32] = BN254_CONTROL_ID;
-        bn254_control_id_bytes.reverse();
-
-        let bn254_control_id_hex: String = bn254_control_id_bytes.encode_hex();
-
-        let bn254_control_id_dec = to_decimal(&bn254_control_id_hex).unwrap();
-
-        let values = [&a0_dec, &a1_dec, &c0_dec, &c1_dec, &bn254_control_id_dec];
-
-        let public_inputs = values
-            .iter()
-            .map(|&v| Fr::from_str(v).unwrap())
-            .collect::<Vec<_>>();
         let end = env::cycle_count();
         println!("PPI: {}", end - start);
         ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
