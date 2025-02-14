@@ -1,5 +1,6 @@
 use risc0_zkvm::guest::env;
-use winternitz_core::{utils::hash160, verify_winternitz_and_groth16, winternitz::{Parameters, PublicKey}};
+use winternitz::verify_winternitz_and_groth16;
+use winternitz_core::{utils::hash160, winternitz::{Parameters, PublicKey}};
 
 fn main() {
     let start = env::cycle_count();

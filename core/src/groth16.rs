@@ -1,16 +1,7 @@
-use crate::constants::{A0_ARK, A1_ARK, BN_254_CONTROL_ID_ARK, PREPARED_VK};
-use crate::groth16_utils::{
-    create_claim_digest, create_output_digest
-};
-use crate::utils::to_decimal;
-use ark_bn254::{Bn254, Fr};
-use ark_ff::{PrimeField, Field};
-use ark_groth16::{PreparedVerifyingKey, Proof};
+use ark_bn254::Bn254;
+use ark_ff::{Field, PrimeField};
+use ark_groth16::Proof;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError};
-use hex::ToHex;
-use risc0_zkvm::guest::env;
-
-use std::str::FromStr;
 type G1 = ark_bn254::G1Affine;
 type G2 = ark_bn254::G2Affine;
 
@@ -94,51 +85,6 @@ impl Groth16Seal {
 
     pub fn c(&self) -> &G1 {
         &self.c
-    }
-}
-
-pub struct Groth16 {
-    groth16_seal: Groth16Seal,
-    total_work: [u8; 16],
-}
-
-impl Groth16 {
-    pub fn new(groth16_seal: Groth16Seal, total_work: [u8; 16]) -> Groth16 {
-        Groth16 {
-            groth16_seal,
-            total_work,
-        }
-    }
-
-    pub fn verify(&self) -> bool {
-        let ark_proof = self.groth16_seal.into();
-        let start = env::cycle_count();
-        let prepared_vk: PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
-            CanonicalDeserialize::deserialize_uncompressed(PREPARED_VK).unwrap();
-        let end = env::cycle_count();
-        println!("PVK: {}", end - start);
-        let start = env::cycle_count();
-
-        let output_digest = create_output_digest(&self.total_work);
-
-        let claim_digest: [u8; 32] = create_claim_digest(&output_digest);
-
-        let claim_digest_hex: String = claim_digest.encode_hex();
-        let c0_str = &claim_digest_hex[32..64];
-        let c1_str = &claim_digest_hex[0..32];
-
-        let c0_dec = to_decimal(c0_str).unwrap();
-        let c1_dec = to_decimal(c1_str).unwrap();
-
-        let c0 = Fr::from_str(&c0_dec).unwrap();
-        let c1 = Fr::from_str(&c1_dec).unwrap();
-
-        let public_inputs = vec![A0_ARK, A1_ARK, c0, c1, BN_254_CONTROL_ID_ARK];
-
-        let end = env::cycle_count();
-        println!("PPI: {}", end - start);
-        ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
-            .unwrap()
     }
 }
 
