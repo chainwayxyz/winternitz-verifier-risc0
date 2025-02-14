@@ -1,4 +1,4 @@
-use crate::constants::{create_verifying_key, BN254_CONTROL_ID};
+use crate::constants::{BN254_CONTROL_ID, PREPARED_VK};
 use crate::error::FieldError;
 use crate::groth16_utils::{
     create_claim_digest, create_output_digest, g1_compress, g1_decompress, g2_compress,
@@ -7,8 +7,10 @@ use crate::groth16_utils::{
 use crate::utils::to_decimal;
 use ark_bn254::{Bn254, Fr};
 use ark_ff::PrimeField;
-use ark_groth16::{prepare_verifying_key, Proof};
+use ark_groth16::{PreparedVerifyingKey, Proof};
+use ark_serialize::CanonicalDeserialize;
 use hex::ToHex;
+use risc0_zkvm::guest::env;
 use risc0_zkvm::Groth16ReceiptVerifierParameters;
 use std::str::FromStr;
 #[derive(Copy, Clone)]
@@ -161,10 +163,12 @@ impl Groth16 {
 
     pub fn verify(&self) -> bool {
         let ark_proof = self.groth16_seal.into();
-        let vk: ark_groth16::VerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
-            create_verifying_key();
-        let prepared_vk: ark_groth16::PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
-            prepare_verifying_key(&vk);
+        let start = env::cycle_count();
+        let prepared_vk: PreparedVerifyingKey<ark_ec::bn::Bn<ark_bn254::Config>> =
+            CanonicalDeserialize::deserialize_uncompressed(PREPARED_VK).unwrap();
+        let end = env::cycle_count();
+        println!("PVK: {}", end - start);
+        let start = env::cycle_count();
 
         let output_digest = create_output_digest(&self.total_work);
 
@@ -204,7 +208,8 @@ impl Groth16 {
             .iter()
             .map(|&v| Fr::from_str(v).unwrap())
             .collect::<Vec<_>>();
-
+        let end = env::cycle_count();
+        println!("PPI: {}", end - start);
         ark_groth16::Groth16::<Bn254>::verify_proof(&prepared_vk, &ark_proof, &public_inputs)
             .unwrap()
     }
