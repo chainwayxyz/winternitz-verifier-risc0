@@ -2,19 +2,29 @@ use borsh::{self, BorshDeserialize};
 use header_chain::header_chain::{
     BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
 };
-use headerchain::HEADERCHAIN_ELF;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use risc0_zkvm::{
     compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt,
 };
 use std::convert::TryInto;
-use winternitz::WINTERNITZ_ELF;
 use winternitz_core::groth16::Groth16Seal;
 use winternitz_core::winternitz::{generate_public_key, sign_digits, Parameters};
-use work_only::WORK_ONLY_ELF;
+
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
+const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-guest");
+const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/regtest-winternitz-guest");
+const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/regtest-work-only-guest");
+
 
 fn main() {
+    let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
+    let winternitz_id: [u32; 8] = compute_image_id(WINTERNITZ_ELF).unwrap().into();
+    let work_only_id: [u32; 8] = compute_image_id(WORK_ONLY_ELF).unwrap().into();
+
+    println!("HEADERCHAIN_ID: {:?}", headerchain_id);
+    println!("WINTERNITZ_ID: {:?}", winternitz_id);
+    println!("WORK_ONLY_ID: {:?}", work_only_id);
+
     let headerchain_proof: Receipt = generate_header_chain_proof();
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
