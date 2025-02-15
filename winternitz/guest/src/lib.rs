@@ -1,13 +1,15 @@
 use ark_bn254::{Bn254, Fr};
+use ark_ff::BigInt;
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
 use hex::ToHex;
 use risc0_zkvm::guest::env;
 use sha2::{Digest, Sha256};
-use winternitz_core::{constants::PREPARED_VK, groth16::Groth16Seal, utils::to_decimal, winternitz::Parameters};
 use std::str::FromStr;
-use ark_ff::BigInt;
 use winternitz_core::winternitz::verify_signature;
+use winternitz_core::{
+    constants::PREPARED_VK, groth16::Groth16Seal, utils::to_decimal, winternitz::Parameters,
+};
 
 // GROTH16 RELATED CONSTANTS
 pub static PRE_STATE: [u8; 32] =
