@@ -8,8 +8,8 @@ default = ["serde"]
 serde = ["dep:serde"]
 
 [dependencies]
-risc0-zkvm = { version = "1.2.2", default-features = false, features = ["std"] }
-risc0-groth16 = { version = "1.2.2" }
+risc0-zkvm = { version = "1.2.3", default-features = false, features = ["std"] }
+risc0-groth16 = { version = "1.2.3" }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 bitcoin = { version = "0.32.5", features = ["rand-std", "serde"] }
 rand = { version = "0.8", features = ["small_rng"] }
