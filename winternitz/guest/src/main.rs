@@ -1,6 +1,9 @@
 use risc0_zkvm::guest::env;
 use winternitz::verify_winternitz_and_groth16;
-use winternitz_core::{utils::hash160, winternitz::{Parameters, PublicKey}};
+use winternitz_core::{
+    utils::hash160,
+    winternitz::{Parameters, PublicKey},
+};
 
 fn main() {
     let start = env::cycle_count();
@@ -8,7 +11,6 @@ fn main() {
     let params: Parameters = env::read();
     let signature: Vec<Vec<u8>> = env::read();
     let message: Vec<u8> = env::read();
-    
 
     verify_winternitz_and_groth16(&pub_key, &signature, &message, &params);
     let mut pub_key_concat: Vec<u8> = vec![0; pub_key.len() * 20];
