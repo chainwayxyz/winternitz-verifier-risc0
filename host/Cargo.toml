@@ -7,7 +7,7 @@ edition = "2021"
 winternitz = { path = "../winternitz" }
 headerchain ={  path = "../headerchain" }
 work-only = { path = "../work_only" }
-risc0-zkvm = { version = "1.2.2", features = ["metal"]}
+risc0-zkvm = { version = "1.2.3", features = ["metal"]}
 ark-bn254 = "0.5.0"
 ark-ff = "0.5.0"
 ark-ec = "0.5.0"
@@ -25,7 +25,7 @@ borsh = {version = "1.5.3", features = ["derive"] }
 crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.5-risczero.0" }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
-risc0-groth16 = "1.2.2"
+risc0-groth16 = "1.2.3"
 
 [features]
 metal = ["risc0-zkvm/metal"]
