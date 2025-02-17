@@ -14,7 +14,7 @@ ENV CC_riscv32im_risc0_zkvm_elf="/root/.local/share/cargo-risczero/cpp/bin/riscv
 ENV CFLAGS_riscv32im_risc0_zkvm_elf="-march=rv32im -nostdlib"
 
 # Set network environment variable
-ARG BITCOIN_NETWORK=mainnet
+ARG BITCOIN_NETWORK=regtest
 ENV BITCOIN_NETWORK=${BITCOIN_NETWORK}
 
 # Only run the build once with the environment variable set
