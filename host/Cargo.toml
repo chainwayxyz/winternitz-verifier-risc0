@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winternitz = { path = "../winternitz" }
-headerchain ={  path = "../headerchain" }
-work-only = { path = "../work_only" }
+work-only-guest = { path = "../work-only/guest" }
 risc0-zkvm = { version = "1.2.3", features = ["metal"]}
 ark-bn254 = "0.5.0"
 ark-ff = "0.5.0"

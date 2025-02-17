@@ -1,46 +1,18 @@
 use ark_bn254::{Bn254, Fr};
-use ark_ff::BigInt;
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
 use hex::ToHex;
 use risc0_zkvm::guest::env;
 use sha2::{Digest, Sha256};
+use constants::{A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE, PREPARED_VK, PRE_STATE};
+use winternitz_core::utils::hash160;
+use winternitz_core::zkvm::ZkvmGuest;
 use std::str::FromStr;
-use winternitz_core::winternitz::verify_signature;
+use winternitz_core::winternitz::{verify_signature, WinternitzCircuitInput, WinternitzCircuitOutput};
 use winternitz_core::{
-    constants::PREPARED_VK, groth16::Groth16Seal, utils::to_decimal, winternitz::Parameters,
+    groth16::CircuitGroth16Proof, utils::to_decimal,
 };
-
-// GROTH16 RELATED CONSTANTS
-pub static PRE_STATE: [u8; 32] =
-    hex_literal::hex!("38e22506dd96d82b369d0dd3ec457089ba2f80c88c0ac37766bd336f172d3dd1");
-pub static POST_STATE: [u8; 32] =
-    hex_literal::hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
-pub static INPUT: [u8; 32] =
-    hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000000");
-pub static ASSUMPTIONS: [u8; 32] =
-    hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000000");
-pub static BN254_CONTROL_ID: [u8; 32] =
-    hex_literal::hex!("c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404");
-pub static CLAIM_TAG: [u8; 32] =
-    hex_literal::hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af"); // hash of "risc0.ReceiptClaim"
-pub static OUTPUT_TAG: [u8; 32] =
-    hex_literal::hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4"); // hash of "risc0.Output"
-
-pub const A0_BIGINT: BigInt<4> = BigInt::new([3584412468423285388, 5573840904707615506, 0, 0]);
-pub const A0_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> = Fr::new(A0_BIGINT);
-
-pub const A1_BIGINT: BigInt<4> = BigInt::new([3118573868620133879, 7567222285189782870, 0, 0]);
-pub const A1_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> = Fr::new(A1_BIGINT);
-
-pub const BN_254_CONTROL_ID_BIGINT: BigInt<4> = BigInt::new([
-    10066737433256753856,
-    15970898588890169697,
-    12996428817291790227,
-    307492062473808767,
-]);
-pub const BN_254_CONTROL_ID_ARK: ark_ff::Fp<ark_ff::MontBackend<ark_bn254::FrConfig, 4>, 4> =
-    Fr::new(BN_254_CONTROL_ID_BIGINT);
+mod constants;
 
 pub fn create_output_digest(total_work: &[u8; 16]) -> [u8; 32] {
     let total_work_digest: [u8; 32] = Sha256::digest(total_work).into();
@@ -80,14 +52,14 @@ pub fn create_claim_digest(output_digest: &[u8; 32]) -> [u8; 32] {
 
     claim_digest.into()
 }
-pub struct Groth16 {
-    groth16_seal: Groth16Seal,
+pub struct CircuitGroth16WithTotalWork {
+    groth16_seal: CircuitGroth16Proof,
     total_work: [u8; 16],
 }
 
-impl Groth16 {
-    pub fn new(groth16_seal: Groth16Seal, total_work: [u8; 16]) -> Groth16 {
-        Groth16 {
+impl CircuitGroth16WithTotalWork {
+    pub fn new(groth16_seal: CircuitGroth16Proof, total_work: [u8; 16]) -> CircuitGroth16WithTotalWork {
+        CircuitGroth16WithTotalWork {
             groth16_seal,
             total_work,
         }
@@ -126,37 +98,51 @@ impl Groth16 {
 }
 
 pub fn verify_winternitz_and_groth16(
-    pub_key: &Vec<[u8; 20]>,
-    signature: &[Vec<u8>],
-    message: &[u8],
-    params: &Parameters,
+    input: &WinternitzCircuitInput,
 ) -> bool {
     let start = env::cycle_count();
-    if !verify_signature(pub_key, signature, message, params) {
+    if !verify_signature(&input) {
         return false;
     }
     
     let end = env::cycle_count();
     println!("WNV: {}", end - start);
-    let compressed_seal: [u8; 128] = match message[0..128].try_into() {
+    let compressed_seal: [u8; 128] = match input.message[0..128].try_into() {
         Ok(compressed_seal) => compressed_seal,
         Err(_) => return false,
     };
-    let total_work: [u8; 16] = match message[128..144].try_into() {
+    let total_work: [u8; 16] = match input.message[128..144].try_into() {
         Ok(total_work) => total_work,
         Err(_) => return false,
     };
 
-    let seal = match Groth16Seal::from_compressed(&compressed_seal) {
+    let seal = match CircuitGroth16Proof::from_compressed(&compressed_seal) {
         Ok(seal) => seal,
         Err(_) => return false,
     };
 
-    let groth16_proof = Groth16::new(seal, total_work);
+    let groth16_proof = CircuitGroth16WithTotalWork::new(seal, total_work);
     let start = env::cycle_count();
     let res = groth16_proof.verify();
     let end = env::cycle_count();
     println!("G16V: {}", end - start);
     println!("{}", res);
     res
+}
+
+pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
+    let start = env::cycle_count();
+    let input: WinternitzCircuitInput = guest.read_from_host();
+
+    verify_winternitz_and_groth16(&input);
+    let mut pub_key_concat: Vec<u8> = vec![0; input.pub_key.len() * 20];
+    for (i, pubkey) in input.pub_key.iter().enumerate() {
+        pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(pubkey);
+    }
+
+    guest.commit(&WinternitzCircuitOutput {
+        winternitz_pubkeys_digest: hash160(&pub_key_concat),
+    });
+    let end = env::cycle_count();
+    println!("WNT: {}", end - start);
 }

@@ -6,18 +6,18 @@ type G1 = ark_bn254::G1Affine;
 type G2 = ark_bn254::G2Affine;
 
 #[derive(Copy, Clone, Debug)]
-pub struct Groth16Seal {
+pub struct CircuitGroth16Proof {
     a: G1,
     b: G2,
     c: G1,
 }
 
-impl Groth16Seal {
-    pub fn new(a: G1, b: G2, c: G1) -> Groth16Seal {
-        Groth16Seal { a, b, c }
+impl CircuitGroth16Proof {
+    pub fn new(a: G1, b: G2, c: G1) -> CircuitGroth16Proof {
+        CircuitGroth16Proof { a, b, c }
     }
 
-    pub fn from_seal(seal: &[u8; 256]) -> Groth16Seal {
+    pub fn from_seal(seal: &[u8; 256]) -> CircuitGroth16Proof {
         let a = G1::new(
             ark_bn254::Fq::from_be_bytes_mod_order(&seal[0..32]),
             ark_bn254::Fq::from_be_bytes_mod_order(&seal[32..64]),
@@ -41,11 +41,11 @@ impl Groth16Seal {
             ark_bn254::Fq::from_be_bytes_mod_order(&seal[224..256]),
         );
 
-        Groth16Seal::new(a, b, c)
+        CircuitGroth16Proof::new(a, b, c)
     }
 
     // first decompress than create a new Groth16Seal
-    pub fn from_compressed(compressed: &[u8; 128]) -> Result<Groth16Seal, SerializationError> {
+    pub fn from_compressed(compressed: &[u8; 128]) -> Result<CircuitGroth16Proof, SerializationError> {
         let a_compressed = &compressed[0..32];
         let b_compressed = &compressed[32..96];
         let c_compressed = &compressed[96..128];
@@ -53,7 +53,7 @@ impl Groth16Seal {
         let b = ark_bn254::G2Affine::deserialize_compressed(b_compressed)?;
         let c = ark_bn254::G1Affine::deserialize_compressed(c_compressed)?;
 
-        Ok(Groth16Seal::new(a, b, c))
+        Ok(CircuitGroth16Proof::new(a, b, c))
     }
 
     pub fn to_compressed(&self) -> Result<[u8; 128], SerializationError> {
@@ -88,12 +88,92 @@ impl Groth16Seal {
     }
 }
 
-impl From<Groth16Seal> for Proof<Bn254> {
-    fn from(g16_seal: Groth16Seal) -> Self {
+impl From<CircuitGroth16Proof> for Proof<Bn254> {
+    fn from(g16_seal: CircuitGroth16Proof) -> Self {
         Proof::<Bn254> {
             a: g16_seal.a,
             b: g16_seal.b,
             c: g16_seal.c,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ark_ff::{One, UniformRand, Zero};
+    use ark_std::rand::Rng;
+    use ark_std::test_rng;
+
+    fn random_g1() -> G1 {
+        let mut rng = test_rng();
+        G1::rand(&mut rng)
+    }
+
+    fn random_g2() -> G2 {
+        let mut rng = test_rng();
+        G2::rand(&mut rng)
+    }
+
+    #[test]
+    fn test_new_and_accessors() {
+        let a = random_g1();
+        let b = random_g2();
+        let c = random_g1();
+
+        let proof = CircuitGroth16Proof::new(a, b, c);
+        assert_eq!(proof.a(), &a);
+        assert_eq!(proof.b(), &b);
+        assert_eq!(proof.c(), &c);
+    }
+
+    #[test]
+    fn test_borsh_ser_deser() {
+        let a = random_g1();
+        let b = random_g2();
+        let c = random_g1();
+        let proof = CircuitGroth16Proof::new(a, b, c);
+        let compressed_proof = proof.to_compressed().expect("Compression failed");
+        
+    }
+
+    #[test]
+    fn test_to_compressed_and_from_compressed() {
+        let proof = CircuitGroth16Proof::new(random_g1(), random_g2(), random_g1());
+
+        let compressed = proof.to_compressed().expect("Compression failed");
+        let decompressed_proof =
+            CircuitGroth16Proof::from_compressed(&compressed).expect("Decompression failed");
+
+        assert_eq!(proof.a(), decompressed_proof.a());
+        assert_eq!(proof.b(), decompressed_proof.b());
+        assert_eq!(proof.c(), decompressed_proof.c());
+    }
+
+    #[test]
+    fn test_conversion_to_proof_bn254() {
+        let proof = CircuitGroth16Proof::new(random_g1(), random_g2(), random_g1());
+        let groth16_proof: Proof<Bn254> = proof.into();
+
+        assert_eq!(proof.a(), &groth16_proof.a);
+        assert_eq!(proof.b(), &groth16_proof.b);
+        assert_eq!(proof.c(), &groth16_proof.c);
+    }
+
+    #[test]
+    fn test_identity_g1_g2_points() {
+        let zero_g1 = G1::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero());
+        let one_g1 = G1::new(ark_bn254::Fq::one(), ark_bn254::Fq::one());
+
+        let zero_g2 = G2::new(
+            ark_bn254::Fq2::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero()),
+            ark_bn254::Fq2::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero()),
+        );
+
+        let proof = CircuitGroth16Proof::new(zero_g1, zero_g2, one_g1);
+
+        assert!(proof.a().is_on_curve());
+        assert!(proof.b().is_on_curve());
+        assert!(proof.c().is_on_curve());
     }
 }
