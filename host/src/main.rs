@@ -33,6 +33,7 @@ fn main() {
         method_id: headerchain_id,
     };
     let work_only_groth16_proof_receipt: Receipt = call_work_only(
+        headerchain_proof,
         &work_only_circuit_input,
     );
 
@@ -71,7 +72,7 @@ fn main() {
     };
 
     let mut binding = ExecutorEnv::builder();
-    let mut env = binding.write_slice(&borsh::to_vec(&winternitz_circuit_input).unwrap());
+    let env = binding.write_slice(&borsh::to_vec(&winternitz_circuit_input).unwrap());
     let env = env.build().unwrap();
     let executor = default_executor();
 
@@ -79,10 +80,12 @@ fn main() {
 }
 
 fn call_work_only(
+    receipt: Receipt,
     input: &WorkOnlyCircuitInput,
 ) -> Receipt {
     let mut binding = ExecutorEnv::builder();
-    let mut env = binding.write_slice(&borsh::to_vec(&input).unwrap());
+    binding.add_assumption(receipt);
+    let env = binding.write_slice(&borsh::to_vec(&input).unwrap());
     let env = env.build().unwrap();
     let prover = default_prover();
     let receipt = prover
