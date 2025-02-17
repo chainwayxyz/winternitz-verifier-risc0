@@ -9,6 +9,7 @@ use risc0_zkvm::{
 use std::convert::TryInto;
 use winternitz_core::groth16::CircuitGroth16Proof;
 use winternitz_core::winternitz::{self, generate_public_key, sign_digits, Parameters, WinternitzCircuitInput};
+use winternitz_core::WorkOnlyCircuitInput;
 
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
 const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-guest");
@@ -27,7 +28,7 @@ fn main() {
     let headerchain_proof: Receipt = generate_header_chain_proof();
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
-    let work_only_circuit_input: work_only_guest::WorkOnlyCircuitInput = work_only_guest::WorkOnlyCircuitInput {
+    let work_only_circuit_input: WorkOnlyCircuitInput = WorkOnlyCircuitInput {
         header_chain_circuit_output: block_header_circuit_output,
         method_id: headerchain_id,
     };

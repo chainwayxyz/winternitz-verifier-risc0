@@ -1485,7 +1485,6 @@ dependencies = [
  "serde",
  "tracing-subscriber 0.3.19",
  "winternitz-core",
- "work-only-guest",
 ]
 
 [[package]]
