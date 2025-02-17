@@ -132,13 +132,21 @@ pub fn verify_winternitz_and_groth16(
     params: &Parameters,
 ) -> bool {
     let start = env::cycle_count();
-    if !verify_signature(pub_key, signature, message, params).unwrap() {
+    if !verify_signature(pub_key, signature, message, params) {
         return false;
     }
+    
     let end = env::cycle_count();
     println!("WNV: {}", end - start);
-    let compressed_seal: [u8; 128] = message[0..128].try_into().unwrap();
-    let total_work: [u8; 16] = message[128..144].try_into().unwrap();
+    let compressed_seal: [u8; 128] = match message[0..128].try_into() {
+        Ok(compressed_seal) => compressed_seal,
+        Err(_) => return false,
+    };
+    let total_work: [u8; 16] = match message[128..144].try_into() {
+        Ok(total_work) => total_work,
+        Err(_) => return false,
+    };
+
     let seal = match Groth16Seal::from_compressed(&compressed_seal) {
         Ok(seal) => seal,
         Err(_) => return false,

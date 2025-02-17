@@ -10,15 +10,11 @@ pub fn verify_signature(
     signature: &[Vec<u8>],
     message: &[u8],
     ps: &Parameters,
-) -> Result<bool, String> {
+) -> bool {
+    if public_key.len() != ps.n as usize || signature.len() != ps.n as usize || message.len() != ps.n0 as usize {
+        return false;
+    }
     let checksum = get_message_checksum(ps, message);
-    assert_eq!(
-        public_key.len(),
-        ps.n as usize,
-        "Public key length mismatch"
-    );
-    assert_eq!(signature.len(), ps.n as usize, "Signature length mismatch");
-    assert_eq!(message.len(), ps.n0 as usize, "Message length mismatch");
 
     for (i, &digit) in message.iter().enumerate() {
         let signature_byte_arr: [u8; 20] = signature[i].as_slice().try_into().unwrap();
@@ -28,7 +24,7 @@ pub fn verify_signature(
 
         if hash_bytes != public_key[i] {
             println!("{:?}, {:?}", hash_bytes, public_key[i]);
-            return Ok(false);
+            return false;
         }
     }
 
@@ -43,11 +39,11 @@ pub fn verify_signature(
 
         if hash_bytes != pubkey {
             println!("{:?}, {:?}", hash_bytes, pubkey);
-            return Ok(false);
+            return false;
         }
     }
 
-    Ok(true)
+    true
 }
 
 pub fn get_message_checksum(ps: &Parameters, digits: &[u8]) -> Vec<u8> {
