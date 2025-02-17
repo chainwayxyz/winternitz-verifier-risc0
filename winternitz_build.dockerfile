@@ -27,4 +27,4 @@ RUN echo "Building for network: ${BITCOIN_NETWORK}" && \
 FROM scratch AS export
 ARG BITCOIN_NETWORK
 COPY --from=build /src/winternitz/guest/target/riscv32im-risc0-zkvm-elf/release ../target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/winternitz-guest
-COPY --from=build /src/winternitz/guest/target/riscv32im-risc0-zkvm-elf/release/winternitz elfs/${BITCOIN_NETWORK}-winternitz-guest
+COPY --from=build /src/winternitz/guest/target/riscv32im-risc0-zkvm-elf/release/winternitz-guest elfs/${BITCOIN_NETWORK}-winternitz-guest

@@ -1280,13 +1280,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "work-only"
+name = "work-only-guest"
 version = "0.1.0"
 dependencies = [
  "borsh",
  "crypto-bigint",
  "header-chain",
  "risc0-zkvm",
+ "serde",
  "tracing",
  "tracing-subscriber 0.3.19",
 ]

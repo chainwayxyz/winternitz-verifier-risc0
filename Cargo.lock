@@ -1422,6 +1422,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "headerchain-guest"
+version = "0.1.0"
+dependencies = [
+ "header-chain",
+ "risc0-zkvm",
+]
+
+[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1469,7 +1477,6 @@ dependencies = [
  "borsh",
  "crypto-bigint 0.5.5 (git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.5-risczero.0)",
  "header-chain",
- "headerchain",
  "num-bigint 0.4.6",
  "num-traits",
  "rand",
@@ -1477,9 +1484,8 @@ dependencies = [
  "risc0-zkvm",
  "serde",
  "tracing-subscriber 0.3.19",
- "winternitz",
  "winternitz-core",
- "work-only",
+ "work-only-guest",
 ]
 
 [[package]]
@@ -3409,6 +3415,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-subscriber"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3427,12 +3443,15 @@ dependencies = [
  "nu-ansi-term",
  "once_cell",
  "regex",
+ "serde",
+ "serde_json",
  "sharded-slab",
  "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
  "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]
@@ -3907,6 +3926,7 @@ dependencies = [
  "ark-std 0.5.0",
  "bitcoin",
  "borsh",
+ "header-chain",
  "hex",
  "hex-literal",
  "num-bigint 0.4.6",
@@ -3918,6 +3938,28 @@ dependencies = [
  "risc0-zkvm",
  "serde",
  "sha2 0.10.8 (git+https://github.com/risc0/RustCrypto-hashes?tag=sha2-v0.10.8-risczero.0)",
+]
+
+[[package]]
+name = "winternitz-guest"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-groth16 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bitcoin",
+ "crypto-bigint 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hex",
+ "hex-literal",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "risc0-zkvm",
+ "serde",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winternitz-core",
 ]
 
 [[package]]
@@ -3934,6 +3976,20 @@ name = "work-only"
 version = "0.1.0"
 dependencies = [
  "risc0-build",
+]
+
+[[package]]
+name = "work-only-guest"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "crypto-bigint 0.5.5 (git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.5-risczero.0)",
+ "header-chain",
+ "risc0-zkvm",
+ "serde",
+ "tracing",
+ "tracing-subscriber 0.3.19",
+ "winternitz-core",
 ]
 
 [[package]]
