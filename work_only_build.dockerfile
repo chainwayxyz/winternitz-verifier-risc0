@@ -20,7 +20,6 @@ ENV BITCOIN_NETWORK=${BITCOIN_NETWORK}
 # Only run the build once with the environment variable set
 RUN echo "Building for network: ${BITCOIN_NETWORK}" && \
     cd work_only && \
-    cargo +risc0 update && \
     cd .. && \
     cargo +risc0 fetch --target riscv32im-risc0-zkvm-elf --manifest-path ${CARGO_MANIFEST_PATH} && \
     cargo +risc0 build --release --target riscv32im-risc0-zkvm-elf --manifest-path ${CARGO_MANIFEST_PATH}
