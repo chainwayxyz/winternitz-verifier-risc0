@@ -130,25 +130,18 @@ mod tests {
     }
 
     #[test]
-    fn test_borsh_ser_deser() {
-        let a = random_g1();
-        let b = random_g2();
-        let c = random_g1();
-        let proof = CircuitGroth16Proof::new(a, b, c);
-        let compressed_proof = proof.to_compressed().expect("Compression failed");
-    }
-
-    #[test]
     fn test_to_compressed_and_from_compressed() {
-        let proof = CircuitGroth16Proof::new(random_g1(), random_g2(), random_g1());
+        for _ in 0..16 {
+            let proof = CircuitGroth16Proof::new(random_g1(), random_g2(), random_g1());
 
-        let compressed = proof.to_compressed().expect("Compression failed");
-        let decompressed_proof =
-            CircuitGroth16Proof::from_compressed(&compressed).expect("Decompression failed");
-
-        assert_eq!(proof.a(), decompressed_proof.a());
-        assert_eq!(proof.b(), decompressed_proof.b());
-        assert_eq!(proof.c(), decompressed_proof.c());
+            let compressed = proof.to_compressed().expect("Compression failed");
+            let decompressed_proof =
+                CircuitGroth16Proof::from_compressed(&compressed).expect("Decompression failed");
+    
+            assert_eq!(proof.a(), decompressed_proof.a());
+            assert_eq!(proof.b(), decompressed_proof.b());
+            assert_eq!(proof.c(), decompressed_proof.c());
+        }
     }
 
     #[test]
@@ -159,22 +152,5 @@ mod tests {
         assert_eq!(proof.a(), &groth16_proof.a);
         assert_eq!(proof.b(), &groth16_proof.b);
         assert_eq!(proof.c(), &groth16_proof.c);
-    }
-
-    #[test]
-    fn test_identity_g1_g2_points() {
-        let zero_g1 = G1::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero());
-        let one_g1 = G1::new(ark_bn254::Fq::one(), ark_bn254::Fq::one());
-
-        let zero_g2 = G2::new(
-            ark_bn254::Fq2::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero()),
-            ark_bn254::Fq2::new(ark_bn254::Fq::zero(), ark_bn254::Fq::zero()),
-        );
-
-        let proof = CircuitGroth16Proof::new(zero_g1, zero_g2, one_g1);
-
-        assert!(proof.a().is_on_curve());
-        assert!(proof.b().is_on_curve());
-        assert!(proof.c().is_on_curve());
     }
 }

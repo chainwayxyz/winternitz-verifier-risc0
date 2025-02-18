@@ -9,7 +9,7 @@ use risc0_zkvm::{
 use std::convert::TryInto;
 use winternitz_core::groth16::CircuitGroth16Proof;
 use winternitz_core::winternitz::{
-    self, generate_public_key, sign_digits, Parameters, WinternitzCircuitInput,
+    generate_public_key, sign_digits, Parameters, WinternitzCircuitInput,
 };
 use winternitz_core::WorkOnlyCircuitInput;
 
