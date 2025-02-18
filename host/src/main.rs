@@ -8,7 +8,9 @@ use risc0_zkvm::{
 };
 use std::convert::TryInto;
 use winternitz_core::groth16::CircuitGroth16Proof;
-use winternitz_core::winternitz::{self, generate_public_key, sign_digits, Parameters, WinternitzCircuitInput};
+use winternitz_core::winternitz::{
+    self, generate_public_key, sign_digits, Parameters, WinternitzCircuitInput,
+};
 use winternitz_core::WorkOnlyCircuitInput;
 
 const HEADERS: &[u8] = include_bytes!("regtest-headers.bin");
@@ -32,16 +34,15 @@ fn main() {
         header_chain_circuit_output: block_header_circuit_output,
         method_id: headerchain_id,
     };
-    let work_only_groth16_proof_receipt: Receipt = call_work_only(
-        headerchain_proof,
-        &work_only_circuit_input,
-    );
+    let work_only_groth16_proof_receipt: Receipt =
+        call_work_only(headerchain_proof, &work_only_circuit_input);
 
     let g16_proof_receipt: &risc0_zkvm::Groth16Receipt<risc0_zkvm::ReceiptClaim> =
         work_only_groth16_proof_receipt.inner.groth16().unwrap();
     println!("G16 PROOF RECEIPT: {:?}", g16_proof_receipt);
 
-    let seal = CircuitGroth16Proof::from_seal(g16_proof_receipt.seal.as_slice().try_into().unwrap());
+    let seal =
+        CircuitGroth16Proof::from_seal(g16_proof_receipt.seal.as_slice().try_into().unwrap());
 
     let compressed_proof = seal.to_compressed().unwrap();
 
@@ -79,10 +80,7 @@ fn main() {
     let _ = executor.execute(env, WINTERNITZ_ELF);
 }
 
-fn call_work_only(
-    receipt: Receipt,
-    input: &WorkOnlyCircuitInput,
-) -> Receipt {
+fn call_work_only(receipt: Receipt, input: &WorkOnlyCircuitInput) -> Receipt {
     let mut binding = ExecutorEnv::builder();
     binding.add_assumption(receipt);
     let env = binding.write_slice(&borsh::to_vec(&input).unwrap());

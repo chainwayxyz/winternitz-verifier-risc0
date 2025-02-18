@@ -45,7 +45,9 @@ impl CircuitGroth16Proof {
     }
 
     // first decompress than create a new Groth16Seal
-    pub fn from_compressed(compressed: &[u8; 128]) -> Result<CircuitGroth16Proof, SerializationError> {
+    pub fn from_compressed(
+        compressed: &[u8; 128],
+    ) -> Result<CircuitGroth16Proof, SerializationError> {
         let a_compressed = &compressed[0..32];
         let b_compressed = &compressed[32..96];
         let c_compressed = &compressed[96..128];
@@ -134,7 +136,6 @@ mod tests {
         let c = random_g1();
         let proof = CircuitGroth16Proof::new(a, b, c);
         let compressed_proof = proof.to_compressed().expect("Compression failed");
-        
     }
 
     #[test]

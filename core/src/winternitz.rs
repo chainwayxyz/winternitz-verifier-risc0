@@ -19,10 +19,11 @@ pub struct WinternitzCircuitOutput {
     pub winternitz_pubkeys_digest: [u8; 20],
 }
 
-pub fn verify_signature(
-    input: &WinternitzCircuitInput,
-) -> bool {
-    if input.pub_key.len() != input.params.n as usize || input.signature.len() != input.params.n as usize || input.message.len() != input.params.n0 as usize {
+pub fn verify_signature(input: &WinternitzCircuitInput) -> bool {
+    if input.pub_key.len() != input.params.n as usize
+        || input.signature.len() != input.params.n as usize
+        || input.message.len() != input.params.n0 as usize
+    {
         return false;
     }
     let checksum = get_message_checksum(&input.params, &input.message);
@@ -45,8 +46,8 @@ pub fn verify_signature(
         .zip(&input.pub_key[input.message.len()..])
     {
         let signature_byte_arr: [u8; 20] = sig.as_slice().try_into().unwrap();
-        let hash_bytes =
-            (0..(input.params.d - checksum as u32)).fold(signature_byte_arr, |hash, _| hash160(&hash));
+        let hash_bytes = (0..(input.params.d - checksum as u32))
+            .fold(signature_byte_arr, |hash, _| hash160(&hash));
 
         if hash_bytes != pubkey {
             println!("{:?}, {:?}", hash_bytes, pubkey);
@@ -91,7 +92,9 @@ fn checksum(ps: &Parameters, digits: &[u8]) -> u32 {
     ps.d * ps.n0 - sum
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Serialize, Deserialize, Eq, PartialEq, Hash, Clone, Debug, BorshDeserialize, BorshSerialize,
+)]
 pub struct Parameters {
     n0: u32,
     log_d: u32,
@@ -189,7 +192,7 @@ pub fn log_base_ceil(n: u32, base: u32) -> u32 {
 mod tests {
     use super::*;
     use bitcoin::hashes::Hash;
-    
+
     #[test]
     fn test_checksum() {
         let ps = Parameters::new(4, 4);
@@ -203,13 +206,13 @@ mod tests {
         assert_eq!(to_digits(10, 2, -1), vec![0, 1, 0, 1]);
         assert_eq!(to_digits(255, 16, 2), vec![15, 15]);
     }
-    
+
     #[test]
     fn test_log_base_ceil() {
         assert_eq!(log_base_ceil(8, 2), 3);
         assert_eq!(log_base_ceil(10, 2), 4);
     }
-    
+
     #[test]
     fn test_public_key_for_digit() {
         let ps = Parameters::new(4, 4);
@@ -217,14 +220,14 @@ mod tests {
         let pk = public_key_for_digit(&ps, &secret_key, 0);
         assert_eq!(pk.len(), 20);
     }
-    
+
     #[test]
     fn test_digit_signature() {
         let secret_key = vec![1, 2, 3, 4];
         let sig = digit_signature(&secret_key, 1, 2);
         assert_eq!(sig.hash_bytes.len(), 20);
     }
-    
+
     #[test]
     fn test_generate_public_key() {
         let ps = Parameters::new(4, 4);
@@ -232,16 +235,16 @@ mod tests {
         let public_key = generate_public_key(&ps, &secret_key);
         assert_eq!(public_key.len(), ps.n as usize);
     }
-    
+
     #[test]
     fn test_sign_and_verify() {
         let ps = Parameters::new(4, 4);
         let secret_key = vec![1, 2, 3, 4];
         let message = vec![1, 2, 3, 4];
-        
+
         let public_key = generate_public_key(&ps, &secret_key);
         let signature = sign_digits(&ps, &secret_key, &message);
-        
+
         let input = WinternitzCircuitInput {
             pub_key: public_key,
             params: ps,
@@ -251,16 +254,16 @@ mod tests {
 
         assert!(verify_signature(&input));
     }
-    
+
     #[test]
     fn test_invalid_signature() {
         let ps = Parameters::new(4, 4);
         let secret_key = vec![1, 2, 3, 4];
         let message = vec![1, 2, 3, 4];
-        
+
         let public_key = generate_public_key(&ps, &secret_key);
         let mut signature = sign_digits(&ps, &secret_key, &message);
-        
+
         signature[0][0] ^= 0xFF;
 
         let input = WinternitzCircuitInput {

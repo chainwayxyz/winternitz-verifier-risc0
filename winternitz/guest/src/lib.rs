@@ -1,17 +1,20 @@
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
+use constants::{
+    A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE,
+    PREPARED_VK, PRE_STATE,
+};
 use hex::ToHex;
 use risc0_zkvm::guest::env;
 use sha2::{Digest, Sha256};
-use constants::{A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE, PREPARED_VK, PRE_STATE};
-use winternitz_core::utils::hash160;
-use winternitz_core::zkvm::ZkvmGuest;
 use std::str::FromStr;
-use winternitz_core::winternitz::{verify_signature, WinternitzCircuitInput, WinternitzCircuitOutput};
-use winternitz_core::{
-    groth16::CircuitGroth16Proof, utils::to_decimal,
+use winternitz_core::utils::hash160;
+use winternitz_core::winternitz::{
+    verify_signature, WinternitzCircuitInput, WinternitzCircuitOutput,
 };
+use winternitz_core::zkvm::ZkvmGuest;
+use winternitz_core::{groth16::CircuitGroth16Proof, utils::to_decimal};
 mod constants;
 
 pub fn create_output_digest(total_work: &[u8; 16]) -> [u8; 32] {
@@ -58,7 +61,10 @@ pub struct CircuitGroth16WithTotalWork {
 }
 
 impl CircuitGroth16WithTotalWork {
-    pub fn new(groth16_seal: CircuitGroth16Proof, total_work: [u8; 16]) -> CircuitGroth16WithTotalWork {
+    pub fn new(
+        groth16_seal: CircuitGroth16Proof,
+        total_work: [u8; 16],
+    ) -> CircuitGroth16WithTotalWork {
         CircuitGroth16WithTotalWork {
             groth16_seal,
             total_work,
@@ -97,14 +103,12 @@ impl CircuitGroth16WithTotalWork {
     }
 }
 
-pub fn verify_winternitz_and_groth16(
-    input: &WinternitzCircuitInput,
-) -> bool {
+pub fn verify_winternitz_and_groth16(input: &WinternitzCircuitInput) -> bool {
     let start = env::cycle_count();
     if !verify_signature(&input) {
         return false;
     }
-    
+
     let end = env::cycle_count();
     println!("WNV: {}", end - start);
     let compressed_seal: [u8; 128] = match input.message[0..128].try_into() {
