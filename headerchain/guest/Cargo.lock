@@ -561,7 +561,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "headerchain"
+name = "headerchain-guest"
 version = "0.1.0"
 dependencies = [
  "header-chain",
