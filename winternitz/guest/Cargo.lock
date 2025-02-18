@@ -797,6 +797,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "header-chain"
+version = "0.1.0"
+source = "git+https://github.com/chainwayxyz/risc0-to-bitvm2.git?rev=a233e27#a233e276a8f783018bb556880401ea5bce4c2424"
+dependencies = [
+ "bitcoin",
+ "borsh",
+ "crypto-bigint",
+ "risc0-zkvm",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1426,7 +1439,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "winternitz"
+name = "winternitz-core"
+version = "1.0.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-crypto-primitives 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-groth16 0.5.0",
+ "ark-relations 0.5.1",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bitcoin",
+ "borsh",
+ "header-chain",
+ "hex",
+ "hex-literal",
+ "num-bigint",
+ "num-traits",
+ "once_cell",
+ "rand",
+ "ripemd",
+ "risc0-groth16",
+ "risc0-zkvm",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "winternitz-guest"
 version = "0.1.0"
 dependencies = [
  "ark-bn254 0.5.0",
@@ -1445,33 +1486,6 @@ dependencies = [
  "serde",
  "sha2",
  "winternitz-core",
-]
-
-[[package]]
-name = "winternitz-core"
-version = "1.0.0"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-crypto-primitives 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-groth16 0.5.0",
- "ark-relations 0.5.1",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "bitcoin",
- "borsh",
- "hex",
- "hex-literal",
- "num-bigint",
- "num-traits",
- "once_cell",
- "rand",
- "ripemd",
- "risc0-groth16",
- "risc0-zkvm",
- "serde",
- "sha2",
 ]
 
 [[package]]
