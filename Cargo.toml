@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "winternitz", "core", "headerchain", "work-only"]
+members = ["host", "winternitz", "core", "headerchain", "work-only", "host-light-client", "lc-proof-verifier"]
 
 [workspace.dependencies]
 tracing = { version = "0.1.40", default-features = false }

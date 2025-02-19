@@ -137,7 +137,7 @@ mod tests {
             let compressed = proof.to_compressed().expect("Compression failed");
             let decompressed_proof =
                 CircuitGroth16Proof::from_compressed(&compressed).expect("Decompression failed");
-    
+
             assert_eq!(proof.a(), decompressed_proof.a());
             assert_eq!(proof.b(), decompressed_proof.b());
             assert_eq!(proof.c(), decompressed_proof.c());

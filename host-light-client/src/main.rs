@@ -1,6 +1,5 @@
-use winternitz_core::light_client_proof;
-
+use host_light_client::fetch_light_client_proof;
 
 fn main() {
-    light_client_proof::fetch_light_client_proof();
+    fetch_light_client_proof();
 }
