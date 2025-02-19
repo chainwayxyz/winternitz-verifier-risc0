@@ -23,6 +23,8 @@ pub fn lc_proof_verifier() -> bool {
 
     let state_root: [u8; 32] = journal[0..32].try_into().unwrap();
 
+    println!("storage value {:?}", storage_proof.value);
+
     storage_verify(storage_proof, state_root);
 
     println!("Proof verification done");

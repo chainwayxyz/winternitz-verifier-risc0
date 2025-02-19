@@ -18,4 +18,5 @@ serde = "1.0.217"
 borsh = "1.5.5"
 alloy-rpc-types-eth = { version = "0.11.1", features = ["serde"] } 
 ethereum-types = "0.15.1"
+hex-literal = "0.4.1"
 

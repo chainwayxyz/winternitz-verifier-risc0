@@ -1,4 +1,5 @@
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::{primitives::keccak256, providers::{Provider, ProviderBuilder}};
+use alloy_primitives::U256;
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use anyhow::bail;
 use hex::decode;
@@ -7,12 +8,12 @@ use serde_json::json;
 
 
 
+const UTXOS_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
 
 const LC_PROOF_VERIFIER_ELF: &[u8] = include_bytes!("../../elfs/regtest-lc-proof-verifier-guest");
 const LIGHT_CLIENT_PROVER_URL: &str = "https://light-client-prover.testnet.citrea.xyz/";
 const CITREA_TESTNET_RPC: &str = "https://rpc.testnet.citrea.xyz/";
 const CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
-
 #[tokio::main]
 pub async fn fetch_light_client_proof() {
     let provider = ProviderBuilder::new().on_http(LIGHT_CLIENT_PROVER_URL.parse().unwrap());
@@ -34,12 +35,23 @@ pub async fn fetch_light_client_proof() {
     let decoded: InnerReceipt = bincode::deserialize(&bytes).expect("Failed to deserialize");
     let receipt = receipt_from_inner(decoded).expect("Failed to create receipt");
 
+    let i = 0;
+    let tx_index: u32 = i * 2;
+
+    let storage_address_bytes = keccak256(UTXOS_STORAGE_INDEX);
+    println!("Storage address: {:?}", &storage_address_bytes[..]);
+    let storage_address: U256 = U256::from_be_bytes(<[u8; 32]>::try_from(&storage_address_bytes[..]).expect("Slice with incorrect length"));
+    let storage_key: alloy_primitives::Uint<256, 4> = storage_address + U256::from(tx_index);
+    let storage_key_hex = hex::encode(storage_key.to_be_bytes::<32>());
+    println!("Storage key: {:?}", &storage_key_hex);
+    let storage_key_hex = format!("0x{}", storage_key_hex);
+
     let citrea_provider = ProviderBuilder::new().on_http(CITREA_TESTNET_RPC.parse().unwrap());
 
     let citrea_client = citrea_provider.client();
     let request = json!([
         CONTRACT_ADDRESS,
-        ["0x0000000000000000000000000000000000000000000000000000000000000026"],
+        [storage_key_hex],
         l2_height
         ]
     );
