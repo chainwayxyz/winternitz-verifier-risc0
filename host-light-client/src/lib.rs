@@ -37,6 +37,7 @@ pub async fn fetch_light_client_proof() {
     let decoded: InnerReceipt = bincode::deserialize(&bytes).expect("Failed to deserialize");
     let receipt = receipt_from_inner(decoded).expect("Failed to create receipt");
 
+
     let ind = 18;
     let tx_index: u32 = ind * 2;
 

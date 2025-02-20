@@ -3,7 +3,6 @@ use alloy_primitives::{Keccak256, U256};
 use jmt::{proof::SparseMerkleProof, KeyHash};
 use alloy_rpc_types::EIP1186StorageProof;
 use alloy_primitives::Bytes;
-use tiny_keccak::Hasher;
 const LC_IMAGE_ID: [u8; 32] = hex_literal::hex!("f9b82dad0590a31c4d58345a8d9f3865857d00b50ada1cd0234ff9bb781e36b0");
 const ADDRESS: [u8; 20] = hex_literal::hex!("3100000000000000000000000000000000000002");
 const UTXOS_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
@@ -17,8 +16,7 @@ pub fn lc_proof_verifier() -> bool {
     let deposit_storage_proof: EIP1186StorageProof = serde_json::from_str(&deposit_storage_proof).unwrap();
 
     println!("deposit storage proof value {:?}", deposit_storage_proof.value);
-
-    // hash utxo storage index with tiny keccak keccak256
+    
     let mut keccak = Keccak256::new();
     keccak.update(UTXOS_STORAGE_INDEX);
     let hash = keccak.finalize();
