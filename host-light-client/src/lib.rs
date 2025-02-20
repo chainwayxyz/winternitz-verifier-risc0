@@ -9,6 +9,8 @@ use serde_json::json;
 
 
 const UTXOS_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
+const DEPOSIT_MAPPING_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000027");
+const TX_ID: [u8; 32] = hex_literal::hex!("2DA38853594CCB2DC9C3D4066BDEEE5FAD72E0688112BA27EE572383A11434D8");
 
 const LC_PROOF_VERIFIER_ELF: &[u8] = include_bytes!("../../elfs/regtest-lc-proof-verifier-guest");
 const LIGHT_CLIENT_PROVER_URL: &str = "https://light-client-prover.testnet.citrea.xyz/";
@@ -35,8 +37,8 @@ pub async fn fetch_light_client_proof() {
     let decoded: InnerReceipt = bincode::deserialize(&bytes).expect("Failed to deserialize");
     let receipt = receipt_from_inner(decoded).expect("Failed to create receipt");
 
-    let i = 0;
-    let tx_index: u32 = i * 2;
+    let ind = 18;
+    let tx_index: u32 = ind * 2;
 
     let storage_address_bytes = keccak256(UTXOS_STORAGE_INDEX);
     println!("Storage address: {:?}", &storage_address_bytes[..]);
@@ -46,12 +48,23 @@ pub async fn fetch_light_client_proof() {
     println!("Storage key: {:?}", &storage_key_hex);
     let storage_key_hex = format!("0x{}", storage_key_hex);
 
+    let mut concantenated: [u8; 64] = [0; 64];
+
+    concantenated[0..32].copy_from_slice(&TX_ID);
+    concantenated[32..64].copy_from_slice(&DEPOSIT_MAPPING_STORAGE_INDEX);
+
+    let storage_address_deposit = keccak256(concantenated);
+    let storage_address_deposit_hex = hex::encode(storage_address_deposit);
+    let storage_address_deposit_hex = format!("0x{}", storage_address_deposit_hex);
+    println!("Storage address deposit: {:?}", &storage_address_deposit_hex);
+
+
     let citrea_provider = ProviderBuilder::new().on_http(CITREA_TESTNET_RPC.parse().unwrap());
 
     let citrea_client = citrea_provider.client();
     let request = json!([
         CONTRACT_ADDRESS,
-        [storage_key_hex],
+        [storage_key_hex, storage_address_deposit_hex],
         l2_height
         ]
     );
@@ -67,12 +80,18 @@ pub async fn fetch_light_client_proof() {
     
     let serialized = serde_json::to_string(&response.storage_proof[0]).unwrap();
 
+    let serialized_deposit = serde_json::to_string(&response.storage_proof[1]).unwrap();
+
 
     let mut binding = ExecutorEnv::builder();
     let env = binding
         .write(&receipt.journal.bytes)
         .unwrap()
         .write(&serialized)
+        .unwrap()
+        .write(&ind)
+        .unwrap()
+        .write(&serialized_deposit)
         .unwrap()
         .add_assumption(receipt)
         .build()
@@ -95,6 +114,7 @@ fn receipt_from_inner(inner: InnerReceipt) -> anyhow::Result<Receipt> {
     let Some(output) = output else {
         bail!("Output body is empty");
     };
+
     let journal = output
         .journal
         .value()
