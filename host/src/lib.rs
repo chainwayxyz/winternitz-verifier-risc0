@@ -92,7 +92,7 @@ pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
     let serialized_deposit = serde_json::to_string(&response.storage_proof[1]).unwrap();
 
     Ok(LightClientProof {
-        lc_proof: receipt.journal.bytes,
+        lc_journal: receipt.journal.bytes,
         storage_proof_utxo: serialized,
         storage_proof_deposit_idx: serialized_deposit,
         index: ind,

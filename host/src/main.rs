@@ -1,8 +1,6 @@
-use anyhow::bail;
-use bitcoin::block;
 use bitcoin::consensus::Decodable;
-use bitcoin::hashes::Hash;
 use borsh::{self, BorshDeserialize};
+use bitcoin::hashes::Hash;
 use final_spv::merkle_tree::BitcoinMerkleTree;
 use final_spv::spv::SPV;
 use header_chain::header_chain::{
@@ -12,10 +10,8 @@ use header_chain::mmr_native::MMRNative;
 use host::fetch_light_client_proof;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use risc0_zkvm::{
-    compute_image_id, default_executor, default_prover, ExecutorEnv, InnerReceipt, ProverOpts,
-    Receipt,
+    compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt,
 };
-use serde::Deserialize;
 use std::convert::TryInto;
 use std::env;
 use winternitz_core::groth16::CircuitGroth16Proof;
@@ -33,6 +29,8 @@ const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/regtest-work-only-guest"
 #[tokio::main]
 async fn main() {
     // let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
+    println!("testnet block 46698: {:?}", TESTNET_BLOCK_46698);
+    println!("testnet block 46698 vec: {:?}", TESTNET_BLOCK_46698.to_vec());
     let winternitz_id: [u32; 8] = compute_image_id(WINTERNITZ_ELF).unwrap().into();
     let work_only_id: [u32; 8] = compute_image_id(WORK_ONLY_ELF).unwrap().into();
 
@@ -40,14 +38,11 @@ async fn main() {
     println!("WINTERNITZ_ID: {:?}", winternitz_id);
     println!("WORK_ONLY_ID: {:?}", work_only_id);
 
-    let headerchain_proof: Receipt;
-    if env::var("GENERATE_PROOF").is_ok() {
-        headerchain_proof = generate_header_chain_proof();
-    } else {
-        headerchain_proof = Receipt::try_from_slice(HEADER_CHAIN_INNER_PROOF).unwrap();
-    }
+    let headerchain_proof: Receipt = match env::var("GENERATE_PROOF") {
+        Ok(_) => generate_header_chain_proof(),
+        Err(_) => Receipt::try_from_slice(HEADER_CHAIN_INNER_PROOF).unwrap(),
+    };
 
-    println!("HEADERCHAIN_PROOF: {:?}", headerchain_proof);
 
     let headers = HEADERS
         .chunks(80)
@@ -61,6 +56,7 @@ async fn main() {
 
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
+
     let work_only_circuit_input: WorkOnlyCircuitInput = WorkOnlyCircuitInput {
         header_chain_circuit_output: block_header_circuit_output.clone(),
     };
@@ -138,11 +134,10 @@ fn call_work_only(receipt: Receipt, input: &WorkOnlyCircuitInput) -> Receipt {
     let env = binding.write_slice(&borsh::to_vec(&input).unwrap());
     let env = env.build().unwrap();
     let prover = default_prover();
-    let receipt = prover
+    prover
         .prove_with_opts(env, WORK_ONLY_ELF, &ProverOpts::groth16())
         .unwrap()
-        .receipt;
-    return receipt;
+        .receipt
 }
 
 fn generate_header_chain_proof() -> Receipt {
@@ -174,10 +169,8 @@ fn generate_header_chain_proof() -> Receipt {
 
     let prover = default_prover();
 
-    let receipt = prover
+    prover
         .prove_with_opts(env, HEADERCHAIN_ELF, &ProverOpts::succinct())
         .unwrap()
-        .receipt;
-
-    return receipt;
+        .receipt
 }

@@ -2647,27 +2647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "host-light-client"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "alloy-primitives 0.6.4",
- "alloy-rpc-types",
- "alloy-rpc-types-eth 0.11.1",
- "anyhow",
- "bincode",
- "borsh",
- "ethereum-types",
- "hex",
- "hex-literal",
- "risc0-zkvm",
- "serde",
- "serde_json",
- "tokio",
- "winternitz-core",
-]
-
-[[package]]
 name = "http"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3110,13 +3089,6 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-
-[[package]]
-name = "lc-proof-verifier"
-version = "0.1.0"
-dependencies = [
- "risc0-build",
-]
 
 [[package]]
 name = "libc"

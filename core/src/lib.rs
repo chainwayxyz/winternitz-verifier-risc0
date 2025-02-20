@@ -19,7 +19,7 @@ pub struct WorkOnlyCircuitOutput {
 
 #[derive(Debug, Clone, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct LightClientProof {
-    pub lc_proof: Vec<u8>,
+    pub lc_journal: Vec<u8>,
     pub storage_proof_utxo: String, // This will be an Outpoint but only a txid is given
     pub storage_proof_deposit_idx: String, // This is the index of the withdrawal
     pub index: u32,                 // For now this is 18, for a specifix withdrawal

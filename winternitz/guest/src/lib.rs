@@ -6,6 +6,7 @@ use constants::{
     PREPARED_VK, PRE_STATE,
 };
 use hex::ToHex;
+use lc_proof::lc_proof_verifier;
 use risc0_zkvm::guest::env;
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
@@ -16,6 +17,7 @@ use winternitz_core::winternitz::{
 use winternitz_core::zkvm::ZkvmGuest;
 use winternitz_core::{groth16::CircuitGroth16Proof, utils::to_decimal};
 mod constants;
+mod lc_proof;
 
 pub fn create_output_digest(total_work: &[u8; 16]) -> [u8; 32] {
     let total_work_digest: [u8; 32] = Sha256::digest(total_work).into();
@@ -134,19 +136,30 @@ pub fn verify_winternitz_and_groth16(input: &WinternitzCircuitInput) -> bool {
     res
 }
 
-pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
+pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
     let start = env::cycle_count();
     let input: WinternitzCircuitInput = guest.read_from_host();
 
     verify_winternitz_and_groth16(&input);
+    
+    let mut total_work: [u8; 32] = [0; 32]; 
+    total_work[16..32].copy_from_slice(&input.message[128..144]);
+    if input.hcp.chain_state.total_work > total_work {
+        return false;
+    }
     let mut pub_key_concat: Vec<u8> = vec![0; input.pub_key.len() * 20];
     for (i, pubkey) in input.pub_key.iter().enumerate() {
         pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(pubkey);
     }
+
+    
 
     guest.commit(&WinternitzCircuitOutput {
         winternitz_pubkeys_digest: hash160(&pub_key_concat),
     });
     let end = env::cycle_count();
     println!("WNT: {}", end - start);
+
+    lc_proof_verifier(input.lcp);
+    true
 }
