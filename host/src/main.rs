@@ -1,53 +1,68 @@
-use borsh::{self, BorshDeserialize};
 use anyhow::bail;
+use bitcoin::block;
+use bitcoin::consensus::Decodable;
+use bitcoin::hashes::Hash;
+use borsh::{self, BorshDeserialize};
+use final_spv::merkle_tree::BitcoinMerkleTree;
+use final_spv::spv::SPV;
 use header_chain::header_chain::{
     BlockHeaderCircuitOutput, CircuitBlockHeader, HeaderChainCircuitInput, HeaderChainPrevProofType,
 };
+use header_chain::mmr_native::MMRNative;
+use host::fetch_light_client_proof;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use risc0_zkvm::{
-    compute_image_id, default_executor, default_prover, ExecutorEnv, ProverOpts, Receipt, InnerReceipt
+    compute_image_id, default_executor, default_prover, ExecutorEnv, InnerReceipt, ProverOpts,
+    Receipt,
 };
+use serde::Deserialize;
 use std::convert::TryInto;
+use std::env;
 use winternitz_core::groth16::CircuitGroth16Proof;
 use winternitz_core::winternitz::{
     generate_public_key, sign_digits, Parameters, WinternitzCircuitInput,
 };
 use winternitz_core::WorkOnlyCircuitInput;
-use std::env;
 
-const HEADERS: &[u8] = include_bytes!("bin-files/regtest-headers.bin");
+const HEADERS: &[u8] = include_bytes!("bin-files/testnet4-headers.bin");
+const TESTNET_BLOCK_46698: &[u8] = include_bytes!("bin-files/testnet4_block_46698.bin");
 const HEADER_CHAIN_INNER_PROOF: &[u8] = include_bytes!("bin-files/first_70000_proof.bin");
 const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-guest");
 const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/regtest-winternitz-guest");
 const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/regtest-work-only-guest");
-
-fn main() {
-    let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
+#[tokio::main]
+async fn main() {
+    // let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
     let winternitz_id: [u32; 8] = compute_image_id(WINTERNITZ_ELF).unwrap().into();
     let work_only_id: [u32; 8] = compute_image_id(WORK_ONLY_ELF).unwrap().into();
 
-    println!("HEADERCHAIN_ID: {:?}", headerchain_id);
+    // println!("HEADERCHAIN_ID: {:?}", headerchain_id);
     println!("WINTERNITZ_ID: {:?}", winternitz_id);
     println!("WORK_ONLY_ID: {:?}", work_only_id);
 
     let headerchain_proof: Receipt;
-    if env::var("GENERATE_PROOF").is_ok(){
+    if env::var("GENERATE_PROOF").is_ok() {
         headerchain_proof = generate_header_chain_proof();
-    }
-    else
-    {
+    } else {
         headerchain_proof = Receipt::try_from_slice(HEADER_CHAIN_INNER_PROOF).unwrap();
     }
-        
+
     println!("HEADERCHAIN_PROOF: {:?}", headerchain_proof);
 
-    
+    let headers = HEADERS
+        .chunks(80)
+        .map(|header| CircuitBlockHeader::try_from_slice(header).unwrap())
+        .collect::<Vec<CircuitBlockHeader>>();
+    let mut mmr_native = MMRNative::new();
+    for header in headers.iter() {
+        mmr_native.append(header.compute_block_hash());
+    }
+    // println!("MMR_ROOT: {:?}", mmr_native);
 
     let block_header_circuit_output: BlockHeaderCircuitOutput =
         borsh::BorshDeserialize::try_from_slice(&headerchain_proof.journal.bytes[..]).unwrap();
     let work_only_circuit_input: WorkOnlyCircuitInput = WorkOnlyCircuitInput {
-        header_chain_circuit_output: block_header_circuit_output,
-        method_id: headerchain_id,
+        header_chain_circuit_output: block_header_circuit_output.clone(),
     };
     let work_only_groth16_proof_receipt: Receipt =
         call_work_only(headerchain_proof, &work_only_circuit_input);
@@ -79,12 +94,34 @@ fn main() {
     let secret_key: Vec<u8> = (0..n0).map(|_| rng.gen()).collect();
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
     let signature = sign_digits(&params, &secret_key, &compressed_proof_and_total_work);
+    let light_client_proof = fetch_light_client_proof().await.unwrap();
+
+    let block_vec = TESTNET_BLOCK_46698.to_vec();
+    let block_46698 = bitcoin::block::Block::consensus_decode(&mut block_vec.as_slice()).unwrap();
+    let move_tx = block_46698.txdata[20].clone();
+    let block_46698_txids: Vec<[u8; 32]> = block_46698
+        .txdata
+        .iter()
+        .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+        .collect();
+    let mmr_inclusion_proof = mmr_native.generate_proof(46698);
+    let block_46698_mt = BitcoinMerkleTree::new(block_46698_txids);
+    let move_tx_proof = block_46698_mt.generate_proof(20);
+    let spv: SPV = SPV {
+        transaction: move_tx.into(),
+        block_inclusion_proof: move_tx_proof,
+        block_header: block_46698.header.into(),
+        mmr_inclusion_proof: mmr_inclusion_proof.1,
+    };
 
     let winternitz_circuit_input: WinternitzCircuitInput = WinternitzCircuitInput {
         pub_key,
         params,
         signature,
         message: compressed_proof_and_total_work,
+        hcp: block_header_circuit_output,
+        payout_spv: spv,
+        lcp: light_client_proof,
     };
 
     let mut binding = ExecutorEnv::builder();

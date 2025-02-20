@@ -6,7 +6,7 @@ pub fn work_only_circuit(guest: &impl ZkvmGuest) {
     let start = env::cycle_count();
     let input: WorkOnlyCircuitInput = guest.read_from_host();
     env::verify(
-        input.method_id,
+        input.header_chain_circuit_output.method_id,
         &borsh::to_vec(&input.header_chain_circuit_output).unwrap(),
     )
     .unwrap();
