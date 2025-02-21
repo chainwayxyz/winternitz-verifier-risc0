@@ -35,6 +35,8 @@ pub struct WinternitzCircuitOutput {
     pub operator_id: Vec<u8>,
 }
 
+
+
 pub fn verify_winternitz_signature(input: &WinternitzHandler) -> bool {
     if input.pub_key.len() != input.params.n as usize
         || input.signature.len() != input.params.n as usize

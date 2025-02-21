@@ -187,7 +187,7 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
 
     println!("SPV verification {:?}", input.payout_spv.verify(mmr));
 
-    let user_wd_outpoint_str = lc_proof_verifier(input.lcp);
+    let user_wd_outpoint_str = lc_proof_verifier(input.lcp.clone());
     let user_wd_outpoint = num_bigint::BigUint::from_str(&user_wd_outpoint_str).unwrap();
     let user_wd_txid = bitcoin::Txid::from_byte_array(user_wd_outpoint.to_bytes_be().as_slice().try_into().unwrap());
     assert_eq!(user_wd_txid, input.payout_spv.transaction.input[0].previous_output.txid);
@@ -203,7 +203,7 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
         correct_watchtowers: watchtower_flags,
         payout_tx_blockhash: input.payout_spv.block_header.compute_block_hash(),
         last_blockhash: [0u8; 32], // TODO: Change here
-        deposit_txid: [0u8; 32], // TODO: Change here
+        deposit_txid: input.lcp.txid_hex,
         operator_id: operator_id,
     });
     let end = env::cycle_count();

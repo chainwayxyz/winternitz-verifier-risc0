@@ -105,16 +105,16 @@ async fn main() {
         .collect();
     let mmr_inclusion_proof = mmr_native.generate_proof(47029);
     let block_47029_mt = BitcoinMerkleTree::new(block_47029_txids);
-    let move_tx_proof = block_47029_mt.generate_proof(15); // 16th tx
+    let payout_tx_proof = block_47029_mt.generate_proof(15); // 16th tx
     let spv: SPV = SPV {
         transaction: payout_tx.into(),
-        block_inclusion_proof: move_tx_proof,
+        block_inclusion_proof: payout_tx_proof,
         block_header: block_47029.header.into(),
         mmr_inclusion_proof: mmr_inclusion_proof.1,
     };
 
     let winternitz_details = WinternitzHandler {
-        pub_key: pub_key,
+        pub_key,
         params,
         signature,
         message: compressed_proof_and_total_work,

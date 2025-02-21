@@ -8,6 +8,8 @@ use winternitz_core::LightClientProof;
 const LC_IMAGE_ID: [u8; 32] = hex_literal::hex!("f9b82dad0590a31c4d58345a8d9f3865857d00b50ada1cd0234ff9bb781e36b0");
 const ADDRESS: [u8; 20] = hex_literal::hex!("3100000000000000000000000000000000000002");
 const UTXOS_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
+const DEPOSIT_MAPPING_STORAGE_INDEX: [u8; 32] =
+    hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000027");
 
 pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> String {
     let utxo_storage_proof: EIP1186StorageProof = serde_json::from_str(&light_client_proof.storage_proof_utxo).unwrap();
@@ -27,6 +29,22 @@ pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> String {
     println!("utxo storage proof value {:?}", utxo_storage_proof.value);
     println!("deposit storage proof value {:?}", deposit_storage_proof.value);
     println!("light client proof index {:?}", light_client_proof.index);
+
+    let mut concantenated: [u8; 64] = [0; 64];
+    concantenated[..32].copy_from_slice(&light_client_proof.txid_hex);
+    concantenated[32..].copy_from_slice(&DEPOSIT_MAPPING_STORAGE_INDEX);
+
+    let mut keccak = Keccak256::new();
+    keccak.update(&concantenated);
+    let mut hash = keccak.finalize().0;
+    hash.reverse(); // To match endianess
+    println!("hash {:?}", hash);
+    println!("deposit storage proof key {:?}", deposit_storage_proof.key.as_b256().0);
+    if hash != deposit_storage_proof.key.as_b256().0 {
+        panic!("Invalid storage key");
+    }
+
+
     if storage_key.to_le_bytes() != utxo_storage_proof.key.as_b256().0 || U256::from(light_client_proof.index) != deposit_storage_proof.value {
         panic!("Invalid storage key");
     }
