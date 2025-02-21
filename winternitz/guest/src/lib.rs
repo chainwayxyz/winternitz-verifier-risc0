@@ -140,6 +140,7 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
     let start = env::cycle_count();
     let input: WinternitzCircuitInput = guest.read_from_host();
 
+    
     verify_winternitz_and_groth16(&input);
     
     let mut total_work: [u8; 32] = [0; 32]; 
@@ -152,13 +153,16 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
         pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(pubkey);
     }
 
-    
-
     guest.commit(&WinternitzCircuitOutput {
         winternitz_pubkeys_digest: hash160(&pub_key_concat),
     });
     let end = env::cycle_count();
     println!("WNT: {}", end - start);
+
+    // MMR WILL BE FETCHED FROM LC PROOF WHEN IT IS READY - THIS IS JUST FOR PROOF OF CONCEPT
+    let mmr = input.hcp.chain_state.block_hashes_mmr;
+
+    println!("SPV verification {:?}", input.payout_spv.verify(mmr));
 
     lc_proof_verifier(input.lcp);
     true

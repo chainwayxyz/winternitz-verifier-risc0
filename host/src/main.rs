@@ -94,7 +94,9 @@ async fn main() {
 
     let block_vec = TESTNET_BLOCK_46698.to_vec();
     let block_46698 = bitcoin::block::Block::consensus_decode(&mut block_vec.as_slice()).unwrap();
+    println!("BLOCK 46698: {:?}", block_46698.block_hash());
     let move_tx = block_46698.txdata[20].clone();
+    println!("MOVE TX: {:?}", move_tx.compute_txid());
     let block_46698_txids: Vec<[u8; 32]> = block_46698
         .txdata
         .iter()
