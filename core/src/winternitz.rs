@@ -9,22 +9,33 @@ use crate::{utils::hash160, LightClientProof};
 use bitcoin::hashes::{self, Hash};
 
 #[derive(Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
-pub struct WinternitzCircuitInput {
+pub struct WinternitzHandler {
     pub pub_key: PublicKey,
     pub params: Parameters,
     pub signature: Vec<Vec<u8>>,
     pub message: Vec<u8>,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+pub struct WinternitzCircuitInput {
+    pub winternitz_details: Vec<WinternitzHandler>,
     pub hcp: BlockHeaderCircuitOutput, // This will be removed once the LightClientProof includes the MMRGuest of the Bitcoin blockhashes
     pub payout_spv: SPV,
     pub lcp: LightClientProof,
+    pub operator_id: u32,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
 pub struct WinternitzCircuitOutput {
     pub winternitz_pubkeys_digest: [u8; 20],
+    pub correct_watchtowers: Vec<bool>,
+    pub payout_tx_blockhash: [u8; 32],
+    pub last_blockhash: [u8; 32],
+    pub deposit_txid: [u8; 32],
+    pub operator_id: Vec<u8>,
 }
 
-pub fn verify_signature(input: &WinternitzCircuitInput) -> bool {
+pub fn verify_winternitz_signature(input: &WinternitzHandler) -> bool {
     if input.pub_key.len() != input.params.n as usize
         || input.signature.len() != input.params.n as usize
         || input.message.len() != input.params.n0 as usize

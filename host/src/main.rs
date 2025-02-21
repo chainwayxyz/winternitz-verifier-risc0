@@ -16,7 +16,7 @@ use std::convert::TryInto;
 use std::env;
 use winternitz_core::groth16::CircuitGroth16Proof;
 use winternitz_core::winternitz::{
-    generate_public_key, sign_digits, Parameters, WinternitzCircuitInput,
+    generate_public_key, sign_digits, Parameters, WinternitzCircuitInput, WinternitzHandler,
 };
 use winternitz_core::WorkOnlyCircuitInput;
 
@@ -113,14 +113,19 @@ async fn main() {
         mmr_inclusion_proof: mmr_inclusion_proof.1,
     };
 
-    let winternitz_circuit_input: WinternitzCircuitInput = WinternitzCircuitInput {
-        pub_key,
+    let winternitz_details = WinternitzHandler {
+        pub_key: pub_key,
         params,
         signature,
         message: compressed_proof_and_total_work,
+    };
+
+    let winternitz_circuit_input: WinternitzCircuitInput = WinternitzCircuitInput {
+        winternitz_details: vec![winternitz_details],
         hcp: block_header_circuit_output,
         payout_spv: spv,
         lcp: light_client_proof,
+        operator_id: 1,
     };
 
     let mut binding = ExecutorEnv::builder();
