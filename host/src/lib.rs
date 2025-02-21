@@ -15,7 +15,7 @@ const UTXOS_STORAGE_INDEX: [u8; 32] =
 const DEPOSIT_MAPPING_STORAGE_INDEX: [u8; 32] =
     hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000027");
 const TX_ID: [u8; 32] =
-    hex_literal::hex!("2DA38853594CCB2DC9C3D4066BDEEE5FAD72E0688112BA27EE572383A11434D8");
+    hex_literal::hex!("9D49DF2E8207286DBBBD8644FC9A07DD5E1033608AAC31F797DCECCA0F74FB8F");
 
 const LC_PROOF_VERIFIER_ELF: &[u8] = include_bytes!("../../elfs/regtest-lc-proof-verifier-guest");
 const LIGHT_CLIENT_PROVER_URL: &str = "https://light-client-prover.testnet.citrea.xyz/";
@@ -38,12 +38,13 @@ pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
     let l2_height = response["lightClientProofOutput"]["lastL2Height"]
         .as_str()
         .expect("l2 height is not a string");
+    println!("L2 height: {:?}", l2_height);
 
     let bytes = decode(proof_str).expect("Invalid hex");
     let decoded: InnerReceipt = bincode::deserialize(&bytes).expect("Failed to deserialize");
     let receipt = receipt_from_inner(decoded).expect("Failed to create receipt");
 
-    let ind = 18;
+    let ind = 34;
     let tx_index: u32 = ind * 2;
 
     let storage_address_bytes = keccak256(UTXOS_STORAGE_INDEX);
@@ -86,6 +87,8 @@ pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
 
     //deserialize the response
     let response: EIP1186AccountProofResponse = serde_json::from_value(response).unwrap();
+
+    println!("HOST VALUE: {:?}", &response.storage_proof[1].value);
 
     let serialized = serde_json::to_string(&response.storage_proof[0]).unwrap();
 

@@ -24,13 +24,13 @@ const HEADERS: &[u8] = include_bytes!("bin-files/testnet4-headers.bin");
 const TESTNET_BLOCK_46698: &[u8] = include_bytes!("bin-files/testnet4_block_46698.bin");
 const HEADER_CHAIN_INNER_PROOF: &[u8] = include_bytes!("bin-files/first_70000_proof.bin");
 const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-guest");
-const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/regtest-winternitz-guest");
-const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/regtest-work-only-guest");
+const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/testnet4-winternitz-guest");
+const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/testnet4-work-only-guest");
 #[tokio::main]
 async fn main() {
     // let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
-    println!("testnet block 46698: {:?}", TESTNET_BLOCK_46698);
-    println!("testnet block 46698 vec: {:?}", TESTNET_BLOCK_46698.to_vec());
+    // println!("testnet block 46698: {:?}", TESTNET_BLOCK_46698);
+    // println!("testnet block 46698 vec: {:?}", TESTNET_BLOCK_46698.to_vec());
     let winternitz_id: [u32; 8] = compute_image_id(WINTERNITZ_ELF).unwrap().into();
     let work_only_id: [u32; 8] = compute_image_id(WORK_ONLY_ELF).unwrap().into();
 
@@ -91,11 +91,12 @@ async fn main() {
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
     let signature = sign_digits(&params, &secret_key, &compressed_proof_and_total_work);
     let light_client_proof = fetch_light_client_proof().await.unwrap();
+    println!("LIGHT CLIENT PROOF: {:?}", light_client_proof);
 
     let block_vec = TESTNET_BLOCK_46698.to_vec();
     let block_46698 = bitcoin::block::Block::consensus_decode(&mut block_vec.as_slice()).unwrap();
     println!("BLOCK 46698: {:?}", block_46698.block_hash());
-    let move_tx = block_46698.txdata[20].clone();
+    let move_tx = block_46698.txdata[43].clone();
     println!("MOVE TX: {:?}", move_tx.compute_txid());
     let block_46698_txids: Vec<[u8; 32]> = block_46698
         .txdata
@@ -104,7 +105,7 @@ async fn main() {
         .collect();
     let mmr_inclusion_proof = mmr_native.generate_proof(46698);
     let block_46698_mt = BitcoinMerkleTree::new(block_46698_txids);
-    let move_tx_proof = block_46698_mt.generate_proof(20);
+    let move_tx_proof = block_46698_mt.generate_proof(43);
     let spv: SPV = SPV {
         transaction: move_tx.into(),
         block_inclusion_proof: move_tx_proof,

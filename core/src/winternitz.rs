@@ -14,7 +14,7 @@ pub struct WinternitzCircuitInput {
     pub params: Parameters,
     pub signature: Vec<Vec<u8>>,
     pub message: Vec<u8>,
-    pub hcp: BlockHeaderCircuitOutput,
+    pub hcp: BlockHeaderCircuitOutput, // This will be removed once the LightClientProof includes the MMRGuest of the Bitcoin blockhashes
     pub payout_spv: SPV,
     pub lcp: LightClientProof,
 }

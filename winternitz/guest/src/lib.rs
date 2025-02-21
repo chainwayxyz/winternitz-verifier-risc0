@@ -136,7 +136,7 @@ pub fn verify_winternitz_and_groth16(input: &WinternitzCircuitInput) -> bool {
     res
 }
 
-pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
+pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
     let start = env::cycle_count();
     let input: WinternitzCircuitInput = guest.read_from_host();
 
@@ -144,14 +144,34 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
     verify_winternitz_and_groth16(&input);
     
     let mut total_work: [u8; 32] = [0; 32]; 
-    total_work[16..32].copy_from_slice(&input.message[128..144]);
-    if input.hcp.chain_state.total_work > total_work {
-        return false;
+    total_work[31] = input.message[140];
+    total_work[30] = input.message[141];
+    total_work[29] = input.message[142];
+    total_work[28] = input.message[143];
+    total_work[27] = input.message[136];
+    total_work[26] = input.message[137];
+    total_work[25] = input.message[138];
+    total_work[24] = input.message[139];
+    total_work[23] = input.message[132];
+    total_work[22] = input.message[133];
+    total_work[21] = input.message[134];
+    total_work[20] = input.message[135];
+    total_work[19] = input.message[128];
+    total_work[18] = input.message[129];
+    total_work[17] = input.message[130];
+    total_work[16] = input.message[131];
+
+    println!("Total work: {:?}", total_work);
+    println!("HCP total work: {:?}", input.hcp.chain_state.total_work);
+    if input.hcp.chain_state.total_work < total_work {
+        panic!("Invalid total work");
     }
     let mut pub_key_concat: Vec<u8> = vec![0; input.pub_key.len() * 20];
     for (i, pubkey) in input.pub_key.iter().enumerate() {
         pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(pubkey);
     }
+
+    
 
     guest.commit(&WinternitzCircuitOutput {
         winternitz_pubkeys_digest: hash160(&pub_key_concat),
@@ -164,6 +184,7 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) -> bool {
 
     println!("SPV verification {:?}", input.payout_spv.verify(mmr));
 
-    lc_proof_verifier(input.lcp);
-    true
+    let user_wd_outpoint_str = lc_proof_verifier(input.lcp);
+    let user_wd_txid = bitcoin::Txid::from_str(&user_wd_outpoint_str).unwrap();
+    assert_eq!(user_wd_txid, input.payout_spv.transaction.input[0].previous_output.txid);
 }
