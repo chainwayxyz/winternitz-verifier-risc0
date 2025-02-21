@@ -23,7 +23,7 @@ const CITREA_TESTNET_RPC: &str = "https://rpc.testnet.citrea.xyz/";
 const CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
 
 // #[tokio::main]
-pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
+pub async fn fetch_light_client_proof() -> Result<(LightClientProof, Receipt), ()> {
     let provider = ProviderBuilder::new().on_http(LIGHT_CLIENT_PROVER_URL.parse().unwrap());
     let client = provider.client();
     let request = json!({
@@ -34,6 +34,7 @@ pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
         .request("lightClientProver_getLightClientProofByL1Height", request)
         .await
         .unwrap();
+    println!("Response: {:?}", response);
     let proof_str = response["proof"].as_str().expect("Proof is not a string")[2..].to_string();
     let l2_height = response["lightClientProofOutput"]["lastL2Height"]
         .as_str()
@@ -94,13 +95,18 @@ pub async fn fetch_light_client_proof() -> Result<LightClientProof, ()> {
 
     let serialized_deposit = serde_json::to_string(&response.storage_proof[1]).unwrap();
 
-    Ok(LightClientProof {
-        lc_journal: receipt.journal.bytes,
-        storage_proof_utxo: serialized,
-        storage_proof_deposit_idx: serialized_deposit,
-        index: ind,
-        txid_hex: TX_ID,
-    })
+    println!("receipt: {:?}", receipt);
+    
+    Ok((
+        LightClientProof {
+            lc_journal: receipt.journal.bytes.clone(),
+            storage_proof_utxo: serialized,
+            storage_proof_deposit_idx: serialized_deposit,
+            index: ind,
+            txid_hex: TX_ID,
+        },
+        receipt,
+    ))
 
     // let mut binding = ExecutorEnv::builder();
     // let env = binding

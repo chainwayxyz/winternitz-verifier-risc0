@@ -1,6 +1,8 @@
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
+use bitcoin::consensus::Decodable;
+use bitcoin::hashes::Hash;
 use constants::{
     A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE,
     PREPARED_VK, PRE_STATE,
@@ -140,12 +142,7 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
     let start = env::cycle_count();
     let input: WinternitzCircuitInput = guest.read_from_host();
 
-    
     verify_winternitz_and_groth16(&input);
-    
-
-    // [0, 0, 0, 0, 147, 1, 0, 0, 118, 250, 126, 190, 176, 135, 0, 199]
-    // Total work: [199, 0, 135, 176, 190, 126, 250, 118, 0, 0, 1, 147, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     println!("{:?}", &input.message[128..144]);
     let mut total_work: [u8; 32] = [0; 32];
@@ -161,8 +158,6 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
         pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(pubkey);
     }
 
-    
-
     guest.commit(&WinternitzCircuitOutput {
         winternitz_pubkeys_digest: hash160(&pub_key_concat),
     });
@@ -175,6 +170,8 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
     println!("SPV verification {:?}", input.payout_spv.verify(mmr));
 
     let user_wd_outpoint_str = lc_proof_verifier(input.lcp);
-    let user_wd_txid = bitcoin::Txid::from_str(&user_wd_outpoint_str).unwrap();
+    let user_wd_outpoint = num_bigint::BigUint::from_str(&user_wd_outpoint_str).unwrap();
+    let user_wd_txid = bitcoin::Txid::from_byte_array(user_wd_outpoint.to_bytes_be().as_slice().try_into().unwrap());
     assert_eq!(user_wd_txid, input.payout_spv.transaction.input[0].previous_output.txid);
+    println!("{:?}", input.payout_spv.transaction.output);
 }

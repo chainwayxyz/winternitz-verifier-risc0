@@ -30,7 +30,10 @@ pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> String {
     if storage_key.to_le_bytes() != utxo_storage_proof.key.as_b256().0 || U256::from(light_client_proof.index) != deposit_storage_proof.value {
         panic!("Invalid storage key");
     }
+    println!("Light client proof verified");
 
+    println!("LC_IMAGE_ID: {:?}", LC_IMAGE_ID);
+    println!("LC_JOURNAL: {:?}", light_client_proof.lc_journal);
     env::verify(
         LC_IMAGE_ID,
         &light_client_proof.lc_journal

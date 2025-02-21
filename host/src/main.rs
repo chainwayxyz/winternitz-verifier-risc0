@@ -1,6 +1,6 @@
 use bitcoin::consensus::Decodable;
-use borsh::{self, BorshDeserialize};
 use bitcoin::hashes::Hash;
+use borsh::{self, BorshDeserialize};
 use final_spv::merkle_tree::BitcoinMerkleTree;
 use final_spv::spv::SPV;
 use header_chain::header_chain::{
@@ -21,11 +21,13 @@ use winternitz_core::winternitz::{
 use winternitz_core::WorkOnlyCircuitInput;
 
 const HEADERS: &[u8] = include_bytes!("bin-files/testnet4-headers.bin");
-const TESTNET_BLOCK_46698: &[u8] = include_bytes!("bin-files/testnet4_block_46698.bin");
+const TESTNET_BLOCK_47029: &[u8] = include_bytes!("bin-files/testnet4_block_47029.bin");
 const HEADER_CHAIN_INNER_PROOF: &[u8] = include_bytes!("bin-files/first_70000_proof.bin");
 const HEADERCHAIN_ELF: &[u8] = include_bytes!("../../elfs/regtest-headerchain-guest");
 const WINTERNITZ_ELF: &[u8] = include_bytes!("../../elfs/testnet4-winternitz-guest");
 const WORK_ONLY_ELF: &[u8] = include_bytes!("../../elfs/testnet4-work-only-guest");
+
+const PAYOUT_TX: [u8; 301] = hex_literal::hex!("02000000000102d43afcd7236286bee4eb5316c597b9977cae4ac69eb8f40d4a47155b94db64540000000000fdffffffeb0577a0d00e1774686e4ef6107d85509a83b63f63056a87ee4a9ff551846bf20100000000fdffffff032036963b00000000160014b9d8ffd3b02047bc33442a2c427abc54ba53a6f83a906b1e020000001600142551d4ad0ab54037f8770ae535ce2e3e56e3f9d50000000000000000036a010101418c1976233f4523d6c988d6c9430b292d5cac77d2358117eeb7dc4dfab728da305ed183fdd44054d368398b64de7ed057fe28c31c689d8ca8c9ea813e100f9203830140b452bea0f0b6ca19442142034d3d9fedfa10bec5e58c12f1f407905214a8c8594f906cb67ffac173fedfcabff55c09e2d44cb9b2cd48f87deae15f729283bf2900000000");
 #[tokio::main]
 async fn main() {
     // let headerchain_id: [u32; 8] = compute_image_id(HEADERCHAIN_ELF).unwrap().into();
@@ -42,7 +44,6 @@ async fn main() {
         Ok(_) => generate_header_chain_proof(),
         Err(_) => Receipt::try_from_slice(HEADER_CHAIN_INNER_PROOF).unwrap(),
     };
-
 
     let headers = HEADERS
         .chunks(80)
@@ -90,26 +91,25 @@ async fn main() {
     let secret_key: Vec<u8> = (0..n0).map(|_| rng.gen()).collect();
     let pub_key: Vec<[u8; 20]> = generate_public_key(&params, &secret_key);
     let signature = sign_digits(&params, &secret_key, &compressed_proof_and_total_work);
-    let light_client_proof = fetch_light_client_proof().await.unwrap();
-    println!("LIGHT CLIENT PROOF: {:?}", light_client_proof);
+    let (light_client_proof, lcp_receipt) = fetch_light_client_proof().await.unwrap();
 
-    let block_vec = TESTNET_BLOCK_46698.to_vec();
-    let block_46698 = bitcoin::block::Block::consensus_decode(&mut block_vec.as_slice()).unwrap();
-    println!("BLOCK 46698: {:?}", block_46698.block_hash());
-    let move_tx = block_46698.txdata[43].clone();
-    println!("MOVE TX: {:?}", move_tx.compute_txid());
-    let block_46698_txids: Vec<[u8; 32]> = block_46698
+    let block_vec = TESTNET_BLOCK_47029.to_vec();
+    let block_47029 = bitcoin::block::Block::consensus_decode(&mut block_vec.as_slice()).unwrap();
+    let payout_tx =
+        bitcoin::transaction::Transaction::consensus_decode(&mut PAYOUT_TX.as_ref()).unwrap();
+
+    let block_47029_txids: Vec<[u8; 32]> = block_47029
         .txdata
         .iter()
         .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
         .collect();
-    let mmr_inclusion_proof = mmr_native.generate_proof(46698);
-    let block_46698_mt = BitcoinMerkleTree::new(block_46698_txids);
-    let move_tx_proof = block_46698_mt.generate_proof(43);
+    let mmr_inclusion_proof = mmr_native.generate_proof(47029);
+    let block_47029_mt = BitcoinMerkleTree::new(block_47029_txids);
+    let move_tx_proof = block_47029_mt.generate_proof(15); // 16th tx
     let spv: SPV = SPV {
-        transaction: move_tx.into(),
+        transaction: payout_tx.into(),
         block_inclusion_proof: move_tx_proof,
-        block_header: block_46698.header.into(),
+        block_header: block_47029.header.into(),
         mmr_inclusion_proof: mmr_inclusion_proof.1,
     };
 
@@ -125,7 +125,7 @@ async fn main() {
 
     let mut binding = ExecutorEnv::builder();
     let env = binding.write_slice(&borsh::to_vec(&winternitz_circuit_input).unwrap());
-    let env = env.build().unwrap();
+    let env = env.add_assumption(lcp_receipt).build().unwrap();
     let executor = default_executor();
 
     let _ = executor.execute(env, WINTERNITZ_ELF);
