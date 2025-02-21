@@ -143,23 +143,13 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
     
     verify_winternitz_and_groth16(&input);
     
-    let mut total_work: [u8; 32] = [0; 32]; 
-    total_work[31] = input.message[140];
-    total_work[30] = input.message[141];
-    total_work[29] = input.message[142];
-    total_work[28] = input.message[143];
-    total_work[27] = input.message[136];
-    total_work[26] = input.message[137];
-    total_work[25] = input.message[138];
-    total_work[24] = input.message[139];
-    total_work[23] = input.message[132];
-    total_work[22] = input.message[133];
-    total_work[21] = input.message[134];
-    total_work[20] = input.message[135];
-    total_work[19] = input.message[128];
-    total_work[18] = input.message[129];
-    total_work[17] = input.message[130];
-    total_work[16] = input.message[131];
+
+    // [0, 0, 0, 0, 147, 1, 0, 0, 118, 250, 126, 190, 176, 135, 0, 199]
+    // Total work: [199, 0, 135, 176, 190, 126, 250, 118, 0, 0, 1, 147, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+    println!("{:?}", &input.message[128..144]);
+    let mut total_work: [u8; 32] = [0; 32];
+    total_work[16..32].copy_from_slice(&input.message[128..144].chunks_exact(4).flat_map(|c| c.iter().rev()).copied().collect::<Vec<_>>());
 
     println!("Total work: {:?}", total_work);
     println!("HCP total work: {:?}", input.hcp.chain_state.total_work);
