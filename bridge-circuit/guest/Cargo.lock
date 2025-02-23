@@ -998,6 +998,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge-circuit-core"
+version = "1.0.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-crypto-primitives 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-groth16 0.5.0",
+ "ark-relations 0.5.1",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bitcoin",
+ "borsh",
+ "final-spv",
+ "header-chain",
+ "hex",
+ "hex-literal",
+ "num-bigint",
+ "num-traits",
+ "once_cell",
+ "rand",
+ "ripemd",
+ "risc0-groth16",
+ "risc0-zkvm",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "bridge-circuit-guest"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types",
+ "alloy-rpc-types-eth",
+ "alloy-serde 0.4.2",
+ "ark-bn254 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-groth16 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bincode",
+ "bitcoin",
+ "borsh",
+ "bridge-circuit-core",
+ "crypto-bigint",
+ "hex",
+ "hex-literal",
+ "jmt",
+ "num-bigint",
+ "num-traits",
+ "risc0-zkvm",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3151,65 +3210,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59690dea168f2198d1a3b0cac23b8063efcd11012f10ae4698f284808c8ef603"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "winternitz-core"
-version = "1.0.0"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-crypto-primitives 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-groth16 0.5.0",
- "ark-relations 0.5.1",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "bitcoin",
- "borsh",
- "final-spv",
- "header-chain",
- "hex",
- "hex-literal",
- "num-bigint",
- "num-traits",
- "once_cell",
- "rand",
- "ripemd",
- "risc0-groth16",
- "risc0-zkvm",
- "serde",
- "sha2",
-]
-
-[[package]]
-name = "winternitz-guest"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types",
- "alloy-rpc-types-eth",
- "alloy-serde 0.4.2",
- "ark-bn254 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-groth16 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "bincode",
- "bitcoin",
- "borsh",
- "crypto-bigint",
- "hex",
- "hex-literal",
- "jmt",
- "num-bigint",
- "num-traits",
- "risc0-zkvm",
- "serde",
- "serde_json",
- "sha2",
- "winternitz-core",
 ]
 
 [[package]]

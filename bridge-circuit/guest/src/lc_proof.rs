@@ -1,5 +1,5 @@
 use risc0_zkvm::guest::env;
-use winternitz_core::LightClientProof;
+use bridge_circuit_core::LightClientProof;
 
 
 const LC_IMAGE_ID: [u8; 32] = hex_literal::hex!("f9b82dad0590a31c4d58345a8d9f3865857d00b50ada1cd0234ff9bb781e36b0");

@@ -1,5 +1,5 @@
 [package]
-name = "winternitz"
+name = "bridge-circuit"
 version = "0.1.0"
 edition = "2021"
 

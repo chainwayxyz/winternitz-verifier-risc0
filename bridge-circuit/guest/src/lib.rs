@@ -4,12 +4,12 @@ use storage_proof::verify_storage_proofs;
 use lc_proof::lc_proof_verifier;
 use risc0_zkvm::guest::env;
 use std::str::FromStr;
-use winternitz_core::utils::hash160;
-use winternitz_core::winternitz::{
+use bridge_circuit_core::utils::hash160;
+use bridge_circuit_core::winternitz::{
     verify_winternitz_signature, WinternitzCircuitInput, WinternitzCircuitOutput, WinternitzHandler
 };
-use winternitz_core::zkvm::ZkvmGuest;
-use winternitz_core::groth16::CircuitGroth16Proof;
+use bridge_circuit_core::zkvm::ZkvmGuest;
+use bridge_circuit_core::groth16::CircuitGroth16Proof;
 mod constants;
 mod lc_proof;
 mod storage_proof;

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "winternitz", "core", "work-only"]
+members = ["host", "bridge-circuit", "core", "work-only"]
 
 [workspace.dependencies]
 tracing = { version = "0.1.40", default-features = false }

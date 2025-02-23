@@ -2,7 +2,7 @@ use ark_bn254::{Bn254, Fr};
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
 use risc0_zkvm::guest::env;
-use winternitz_core::{groth16::CircuitGroth16Proof, utils::to_decimal};
+use bridge_circuit_core::{groth16::CircuitGroth16Proof, utils::to_decimal};
 use crate::constants::{
     A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE,
     PREPARED_VK, PRE_STATE,

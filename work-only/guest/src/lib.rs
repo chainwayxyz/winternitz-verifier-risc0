@@ -1,6 +1,6 @@
 use crypto_bigint::{Encoding, U128, U256};
 use risc0_zkvm::guest::env;
-use winternitz_core::{zkvm::ZkvmGuest, WorkOnlyCircuitInput, WorkOnlyCircuitOutput};
+use bridge_circuit_core::{zkvm::ZkvmGuest, WorkOnlyCircuitInput, WorkOnlyCircuitOutput};
 
 pub fn work_only_circuit(guest: &impl ZkvmGuest) {
     let start = env::cycle_count();

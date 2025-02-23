@@ -557,6 +557,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge-circuit-core"
+version = "1.0.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-crypto-primitives 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-groth16 0.5.0",
+ "ark-relations 0.5.1",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bitcoin",
+ "borsh",
+ "final-spv",
+ "header-chain",
+ "hex",
+ "hex-literal",
+ "num-bigint",
+ "num-traits",
+ "once_cell",
+ "rand",
+ "ripemd",
+ "risc0-groth16",
+ "risc0-zkvm",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1611,45 +1640,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "winternitz-core"
-version = "1.0.0"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-crypto-primitives 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-groth16 0.5.0",
- "ark-relations 0.5.1",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "bitcoin",
- "borsh",
- "final-spv",
- "header-chain",
- "hex",
- "hex-literal",
- "num-bigint",
- "num-traits",
- "once_cell",
- "rand",
- "ripemd",
- "risc0-groth16",
- "risc0-zkvm",
- "serde",
- "sha2",
-]
-
-[[package]]
 name = "work-only-guest"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "bridge-circuit-core",
  "crypto-bigint",
  "risc0-zkvm",
  "serde",
  "tracing",
  "tracing-subscriber 0.3.19",
- "winternitz-core",
 ]
 
 [[package]]

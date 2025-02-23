@@ -8,7 +8,7 @@ use anyhow::bail;
 use hex::decode;
 use risc0_zkvm::{InnerReceipt, Receipt};
 use serde_json::json;
-use winternitz_core::{LightClientProof, StorageProof};
+use bridge_circuit_core::{LightClientProof, StorageProof};
 
 const UTXOS_STORAGE_INDEX: [u8; 32] =
     hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");

@@ -2,7 +2,7 @@ use std::env;
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-changed=winternitz_build.dockerfile");
+    println!("cargo:rerun-if-changed=bridge_circuit_build.dockerfile");
 
     if env::var("REPR_GUEST_BUILD").is_ok() {
         // Get the absolute path to the project root
@@ -24,7 +24,7 @@ fn main() {
                 "--platform",
                 "linux/amd64",
                 "-f",
-                "winternitz_build.dockerfile",
+                "bridge_circuit_build.dockerfile",
                 "--output",
                 &format!("type=local,dest=."),
                 ".", // Use current directory as context
