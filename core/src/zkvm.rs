@@ -27,8 +27,9 @@ pub trait ZkvmHost {
     fn execute(&self, elf: &[u32]) -> Proof;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Risc0Guest;
+
 
 impl Risc0Guest {
     pub fn new() -> Self {

@@ -1645,7 +1645,6 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "crypto-bigint",
- "header-chain",
  "risc0-zkvm",
  "serde",
  "tracing",
