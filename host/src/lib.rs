@@ -6,9 +6,9 @@ use alloy_primitives::U256;
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use anyhow::bail;
 use hex::decode;
-use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, Receipt};
+use risc0_zkvm::{InnerReceipt, Receipt};
 use serde_json::json;
-use winternitz_core::LightClientProof;
+use winternitz_core::{LightClientProof, StorageProof};
 
 const UTXOS_STORAGE_INDEX: [u8; 32] =
     hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
@@ -17,34 +17,44 @@ const DEPOSIT_MAPPING_STORAGE_INDEX: [u8; 32] =
 const TX_ID: [u8; 32] =
     hex_literal::hex!("9D49DF2E8207286DBBBD8644FC9A07DD5E1033608AAC31F797DCECCA0F74FB8F");
 
-const LC_PROOF_VERIFIER_ELF: &[u8] = include_bytes!("../../elfs/regtest-lc-proof-verifier-guest");
 const LIGHT_CLIENT_PROVER_URL: &str = "https://light-client-prover.testnet.citrea.xyz/";
 const CITREA_TESTNET_RPC: &str = "https://rpc.testnet.citrea.xyz/";
 const CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
 
-// #[tokio::main]
-pub async fn fetch_light_client_proof() -> Result<(LightClientProof, Receipt), ()> {
+pub async fn fetch_light_client_proof(l1_height: u32) -> Result<(LightClientProof, Receipt), ()> {
     let provider = ProviderBuilder::new().on_http(LIGHT_CLIENT_PROVER_URL.parse().unwrap());
     let client = provider.client();
     let request = json!({
-        "l1_height": 70029
+        "l1_height": l1_height
     });
 
     let response: serde_json::Value = client
         .request("lightClientProver_getLightClientProofByL1Height", request)
         .await
         .unwrap();
-    println!("Response: {:?}", response);
+
     let proof_str = response["proof"].as_str().expect("Proof is not a string")[2..].to_string();
-    let l2_height = response["lightClientProofOutput"]["lastL2Height"]
-        .as_str()
-        .expect("l2 height is not a string");
-    println!("L2 height: {:?}", l2_height);
 
     let bytes = decode(proof_str).expect("Invalid hex");
     let decoded: InnerReceipt = bincode::deserialize(&bytes).expect("Failed to deserialize");
     let receipt = receipt_from_inner(decoded).expect("Failed to create receipt");
+    
 
+    let l2_height = response["lightClientProofOutput"]["lastL2Height"]
+    .as_str()
+    .expect("l2 height is not a string");
+    println!("L2 height: {:?}", l2_height);
+    
+    Ok((
+        LightClientProof {
+            lc_journal: receipt.journal.bytes.clone(),
+            l2_height: l2_height.to_string(),
+        },
+        receipt,
+    ))
+}
+
+pub async fn fetch_storage_proof(l2_height: &String) -> StorageProof{
     let ind = 34;
     let tx_index: u32 = ind * 2;
 
@@ -84,47 +94,22 @@ pub async fn fetch_light_client_proof() -> Result<(LightClientProof, Receipt), (
         .request("eth_getProof", request)
         .await
         .unwrap();
-    // serialize the response
 
-    //deserialize the response
     let response: EIP1186AccountProofResponse = serde_json::from_value(response).unwrap();
 
     println!("HOST VALUE: {:?}", &response.storage_proof[1].value);
 
-    let serialized = serde_json::to_string(&response.storage_proof[0]).unwrap();
+    let serialized_utxo = serde_json::to_string(&response.storage_proof[0]).unwrap();
 
     let serialized_deposit = serde_json::to_string(&response.storage_proof[1]).unwrap();
 
-    println!("receipt: {:?}", receipt);
-    
-    Ok((
-        LightClientProof {
-            lc_journal: receipt.journal.bytes.clone(),
-            storage_proof_utxo: serialized,
-            storage_proof_deposit_idx: serialized_deposit,
-            index: ind,
-            txid_hex: TX_ID,
-        },
-        receipt,
-    ))
+    StorageProof {
+        storage_proof_utxo: serialized_utxo,
+        storage_proof_deposit_idx: serialized_deposit,
+        index: ind,
+        txid_hex: TX_ID,
+    }
 
-    // let mut binding = ExecutorEnv::builder();
-    // let env = binding
-    //     .write(&receipt.journal.bytes)
-    //     .unwrap()
-    //     .write(&serialized)
-    //     .unwrap()
-    //     .write(&ind)
-    //     .unwrap()
-    //     .write(&serialized_deposit)
-    //     .unwrap()
-    //     .add_assumption(receipt)
-    //     .build()
-    //     .unwrap();
-
-    // let prover = default_prover();
-
-    // _ = prover.prove(env, LC_PROOF_VERIFIER_ELF);
 }
 
 fn receipt_from_inner(inner: InnerReceipt) -> anyhow::Result<Receipt> {

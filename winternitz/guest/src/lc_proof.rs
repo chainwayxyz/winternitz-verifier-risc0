@@ -3,17 +3,35 @@ use alloy_primitives::{Keccak256, U256};
 use jmt::{proof::SparseMerkleProof, KeyHash};
 use alloy_rpc_types::EIP1186StorageProof;
 use alloy_primitives::Bytes;
-use winternitz_core::LightClientProof;
+use winternitz_core::{LightClientProof, StorageProof};
+
 
 const LC_IMAGE_ID: [u8; 32] = hex_literal::hex!("f9b82dad0590a31c4d58345a8d9f3865857d00b50ada1cd0234ff9bb781e36b0");
 const ADDRESS: [u8; 20] = hex_literal::hex!("3100000000000000000000000000000000000002");
+
+// STORAGRE SLOTES of DATA STRUCTURES ON BRIDGE CONTRACT
 const UTXOS_STORAGE_INDEX: [u8; 32] = hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000026");
 const DEPOSIT_MAPPING_STORAGE_INDEX: [u8; 32] =
     hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000027");
 
-pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> String {
-    let utxo_storage_proof: EIP1186StorageProof = serde_json::from_str(&light_client_proof.storage_proof_utxo).unwrap();
-    let deposit_storage_proof: EIP1186StorageProof = serde_json::from_str(&light_client_proof.storage_proof_deposit_idx).unwrap();
+pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> [u8; 32] {
+    env::verify(
+        LC_IMAGE_ID,
+        &light_client_proof.lc_journal
+    ).unwrap();
+
+    println!("Light client proof verified!");
+
+    if light_client_proof.lc_journal.len() < 32 {
+        panic!("Invalid light client journal");
+    }
+
+    light_client_proof.lc_journal[0..32].try_into().unwrap() // state root
+}
+
+pub fn verify_storage_proofs(storage_proof: &StorageProof, state_root:[u8; 32] ) -> String{
+    let utxo_storage_proof: EIP1186StorageProof = serde_json::from_str(&storage_proof.storage_proof_utxo).unwrap();
+    let deposit_storage_proof: EIP1186StorageProof = serde_json::from_str(&storage_proof.storage_proof_deposit_idx).unwrap();
 
     println!("deposit storage proof value {:?}", deposit_storage_proof.value);
     
@@ -22,52 +40,35 @@ pub fn lc_proof_verifier(light_client_proof: LightClientProof) -> String {
     let hash = keccak.finalize();
     
     let storage_address: U256 = U256::from_be_bytes(<[u8; 32]>::try_from(&hash[..]).expect("Slice with incorrect length"));
-    let storage_key: alloy_primitives::Uint<256, 4> = storage_address + U256::from(light_client_proof.index * 2);
-    println!("storage key {:?}", storage_key.to_le_bytes::<32>());
-    println!("utxo storage proof key {:?}", utxo_storage_proof.key.as_b256().0);
-    println!("deposit storage proof key {:?}", deposit_storage_proof.key.as_b256().0);
-    println!("utxo storage proof value {:?}", utxo_storage_proof.value);
-    println!("deposit storage proof value {:?}", deposit_storage_proof.value);
-    println!("light client proof index {:?}", light_client_proof.index);
+    let storage_key: alloy_primitives::Uint<256, 4> = storage_address + U256::from(storage_proof.index * 2);
 
     let mut concantenated: [u8; 64] = [0; 64];
-    concantenated[..32].copy_from_slice(&light_client_proof.txid_hex);
+    concantenated[..32].copy_from_slice(&storage_proof.txid_hex);
     concantenated[32..].copy_from_slice(&DEPOSIT_MAPPING_STORAGE_INDEX);
 
     let mut keccak = Keccak256::new();
     keccak.update(&concantenated);
     let mut hash = keccak.finalize().0;
     hash.reverse(); // To match endianess
-    println!("hash {:?}", hash);
-    println!("deposit storage proof key {:?}", deposit_storage_proof.key.as_b256().0);
+    
     if hash != deposit_storage_proof.key.as_b256().0 {
-        panic!("Invalid storage key");
+        panic!("Invalid deposit storage key.");
     }
 
-
-    if storage_key.to_le_bytes() != utxo_storage_proof.key.as_b256().0 || U256::from(light_client_proof.index) != deposit_storage_proof.value {
-        panic!("Invalid storage key");
-    }
-    println!("Light client proof verified");
-
-    println!("LC_IMAGE_ID: {:?}", LC_IMAGE_ID);
-    println!("LC_JOURNAL: {:?}", light_client_proof.lc_journal);
-    env::verify(
-        LC_IMAGE_ID,
-        &light_client_proof.lc_journal
-    ).unwrap();
-
-    if light_client_proof.lc_journal.len() < 32 {
-        panic!("Invalid light client journal");
+    if storage_key.to_le_bytes() != utxo_storage_proof.key.as_b256().0 || U256::from(storage_proof.index) != deposit_storage_proof.value {
+        panic!("Invalid withdrawal UTXO storage key.");
     }
 
-    let state_root: [u8; 32] = light_client_proof.lc_journal[0..32].try_into().unwrap();
-    println!("storage value {:?}", utxo_storage_proof.value);
     storage_verify(&deposit_storage_proof, state_root);
+    println!("Deposit storage proof verification successful!");
+    
     storage_verify(&utxo_storage_proof, state_root);
-    println!("Proof verification done");
+    println!("UTXO storage proof verification successful!");
+
     utxo_storage_proof.value.to_string()
+    
 }
+
 
 fn storage_verify(storage_proof: &EIP1186StorageProof, expected_root_hash: [u8; 32]) {
     println!("key {:?}", storage_proof.key.as_b256().0);

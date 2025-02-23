@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub type HashOut = [u8; 20];
 pub type PublicKey = Vec<HashOut>;
 pub type SecretKey = Vec<u8>;
-use crate::{utils::hash160, LightClientProof};
+use crate::{utils::hash160, LightClientProof, StorageProof};
 use bitcoin::hashes::{self, Hash};
 
 #[derive(Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
@@ -23,6 +23,7 @@ pub struct WinternitzCircuitInput {
     pub payout_spv: SPV,
     pub lcp: LightClientProof,
     pub operator_id: u32,
+    pub sp : StorageProof,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
@@ -44,6 +45,7 @@ pub fn verify_winternitz_signature(input: &WinternitzHandler) -> bool {
     {
         return false;
     }
+    
     let checksum = get_message_checksum(&input.params, &input.message);
 
     for (i, &digit) in input.message.iter().enumerate() {
@@ -209,7 +211,6 @@ pub fn log_base_ceil(n: u32, base: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::hashes::Hash;
 
     #[test]
     fn test_checksum() {

@@ -1,14 +1,13 @@
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::PreparedVerifyingKey;
 use ark_serialize::CanonicalDeserialize;
-use bitcoin::consensus::Decodable;
 use bitcoin::hashes::Hash;
 use constants::{
     A0_ARK, A1_ARK, ASSUMPTIONS, BN_254_CONTROL_ID_ARK, CLAIM_TAG, INPUT, OUTPUT_TAG, POST_STATE,
     PREPARED_VK, PRE_STATE,
 };
 use hex::ToHex;
-use lc_proof::lc_proof_verifier;
+use lc_proof::{lc_proof_verifier, verify_storage_proofs};
 use risc0_zkvm::guest::env;
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
@@ -120,6 +119,7 @@ pub fn convert_to_groth16_and_verify(message: &Vec<u8>) -> bool {
         Ok(compressed_seal) => compressed_seal,
         Err(_) => return false,
     };
+    
     let total_work: [u8; 16] = match message[128..144].try_into() {
         Ok(total_work) => total_work,
         Err(_) => return false,
@@ -142,36 +142,37 @@ pub fn convert_to_groth16_and_verify(message: &Vec<u8>) -> bool {
 pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
     let start = env::cycle_count();
     let input: WinternitzCircuitInput = guest.read_from_host();
-    let mut watchtower_flags: Vec<bool> = vec![];
-    for winternitz_handler in &input.winternitz_details {
-        watchtower_flags.push(verify_winternitz_signature(&winternitz_handler));
-    }
 
+    let mut watchtower_flags: Vec<bool> = vec![];
     let mut wt_messages_with_idxs: Vec<(usize, Vec<u8>)> = vec![];
-    for (wt_idx, flag) in watchtower_flags.iter().enumerate() {
-        if *flag {
-            wt_messages_with_idxs.push((wt_idx, input.winternitz_details[wt_idx].message.clone()));
+
+    // Verify Winternitz signatures
+    for (wt_idx, winternitz_handler) in input.winternitz_details.iter().enumerate() {
+        let flag = verify_winternitz_signature(winternitz_handler);
+        watchtower_flags.push(flag);
+        
+        if flag {
+            wt_messages_with_idxs.push((wt_idx, winternitz_handler.message.clone()));
         }
     }
+
     // sort by total work from the largest to the smallest
     wt_messages_with_idxs.sort_by(|a, b| b.1.cmp(&a.1));
     let mut total_work = [0u8; 32];
     for pair in wt_messages_with_idxs.iter() {
+
+        // Grooth16 verification of work only circuit
         if convert_to_groth16_and_verify(&pair.1) {
             total_work[16..32].copy_from_slice(&pair.1[128..144].chunks_exact(4).flat_map(|c| c.iter().rev()).copied().collect::<Vec<_>>());
             break;
         }
     }
 
-    // println!("{:?}", &input.message[128..144]);
-    // let mut total_work: [u8; 32] = [0; 32];
-    // total_work[16..32].copy_from_slice(&input.message[128..144].chunks_exact(4).flat_map(|c| c.iter().rev()).copied().collect::<Vec<_>>());
-
-    println!("Total work: {:?}", total_work);
-    println!("HCP total work: {:?}", input.hcp.chain_state.total_work);
+    // If total work is less than the max total work of watchtowers, panic
     if input.hcp.chain_state.total_work < total_work {
-        panic!("Invalid total work");
+        panic!("Invalid total work: Total Work {:?} - Max Total Work: {:?}", input.hcp.chain_state.total_work, total_work);
     }
+
     let num_wts = input.winternitz_details.len();
     let pk_size = input.winternitz_details[0].pub_key.len();
     let mut pub_key_concat: Vec<u8> = vec![0; num_wts * pk_size * 20];
@@ -179,15 +180,17 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
         for (j, pubkey) in wots_handler.pub_key.iter().enumerate() {
             pub_key_concat[(pk_size * i * 20 + j * 20)..(pk_size * i * 20 + (j + 1) * 20)].copy_from_slice(pubkey);
         }
-        // pub_key_concat[i * 20..(i + 1) * 20].copy_from_slice(wots_handler.pub_key.as_slice());
     }
 
     // MMR WILL BE FETCHED FROM LC PROOF WHEN IT IS READY - THIS IS JUST FOR PROOF OF CONCEPT
     let mmr = input.hcp.chain_state.block_hashes_mmr;
 
+    // SPV verification of payout transaction
     println!("SPV verification {:?}", input.payout_spv.verify(mmr));
 
-    let user_wd_outpoint_str = lc_proof_verifier(input.lcp.clone());
+    // Light client proof verification
+    let state_root = lc_proof_verifier(input.lcp.clone());
+    let user_wd_outpoint_str= verify_storage_proofs(&input.sp, state_root);
     let user_wd_outpoint = num_bigint::BigUint::from_str(&user_wd_outpoint_str).unwrap();
     let user_wd_txid = bitcoin::Txid::from_byte_array(user_wd_outpoint.to_bytes_be().as_slice().try_into().unwrap());
     assert_eq!(user_wd_txid, input.payout_spv.transaction.input[0].previous_output.txid);
@@ -202,8 +205,8 @@ pub fn winternitz_circuit(guest: &impl ZkvmGuest) {
         winternitz_pubkeys_digest: hash160(&pub_key_concat),
         correct_watchtowers: watchtower_flags,
         payout_tx_blockhash: input.payout_spv.block_header.compute_block_hash(),
-        last_blockhash: [0u8; 32], // TODO: Change here
-        deposit_txid: input.lcp.txid_hex,
+        last_blockhash: [0u8; 32], // TODO: Change here - WE'LL CHANGE WHEN WITHDRAWAL IS AVAILABLE
+        deposit_txid: input.sp.txid_hex,
         operator_id: operator_id,
     });
     let end = env::cycle_count();
