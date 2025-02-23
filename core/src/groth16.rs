@@ -103,8 +103,7 @@ impl From<CircuitGroth16Proof> for Proof<Bn254> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::{One, UniformRand, Zero};
-    use ark_std::rand::Rng;
+    use ark_ff::UniformRand;
     use ark_std::test_rng;
 
     fn random_g1() -> G1 {
